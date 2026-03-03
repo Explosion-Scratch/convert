@@ -5,6 +5,7 @@ import { TraversionGraph } from "./TraversionGraph.js";
 import { PopupData } from "./ui/index.js";
 import { closePopup, openPopup } from "./ui/PopupStore.js";
 import { signal } from "@preact/signals";
+import { Mode, ModeEnum } from "./ui/ModeStore.js";
 
 /** KV pairs of files */
 type FileRecord = Record<`${string}-${string}`, File>
@@ -18,19 +19,6 @@ export const ConversionOptions: ConversionOptionsMap = new Map();
  * Files currently selected for conversion
  */
 export const SelectedFiles = signal<FileRecord>({});
-
-/**
- * Whether to use "simple" mode
- * - In **simple** mode, the input/output lists are grouped by file format.
- * - In **advanced** mode, these lists are grouped by format handlers, which
- *   requires the user to manually select the tool that processes the output.
- */
-export let SimpleMode: boolean = true;
-/**
- * Setter for `SimpleMode`
- * @param val Value to input
- */
-export function setSimpleMode(val: boolean) { SimpleMode = val }
 
 /**
  * Handlers that support conversion from any formats
@@ -137,7 +125,7 @@ window.tryConvertByTraversing = async function (
 	from: ConvertPathNode,
 	to: ConvertPathNode
 ) {
-	for await (const path of window.traversionGraph.searchPath(from, to, SimpleMode)) {
+	for await (const path of window.traversionGraph.searchPath(from, to, Mode.value === ModeEnum.Simple)) {
 		// Use exact output format if the target handler supports it
 		if (path.at(-1)?.handler === to.handler) {
 			path[path.length - 1] = to;
