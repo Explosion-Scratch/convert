@@ -13,7 +13,7 @@ type SearchProps = Set<keyof FormatType>;
 /**
  * Search within these properties of the format cards
  */
-const searchProps: SearchProps = new Set(['fullName', 'format', 'mime']);
+const searchProps: SearchProps = new Set(['fullName', 'formatName', 'mime']);
 
 interface FormatExplorerProps {
     categories: FormatCategory[];

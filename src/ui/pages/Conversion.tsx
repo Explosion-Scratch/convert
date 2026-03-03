@@ -29,31 +29,31 @@ const sidebarItems: FormatCategory[] = [ // Placeholder categories
     { id: "ebk", category: "E-Book", icon: faFileLinesRegular },
 ];
 
-export default function Conversion({ }: ConversionPageProps) {
-    const AvailableConversionFormats: FormatTypeCard[] = getConversionFormats();
-    const [selectedFormat, setSelectedFormat] = useState<FormatTypeCard | null>(null);
-
-    /**
+/**
      * ! remove, pass direct format instead
      * Maps all supported formats into UI format cards
      */
-    function getConversionFormats(): FormatTypeCard[] {
-        if (ConversionOptions.size) {
-            const formats: FormatTypeCard[] = [];
-            for (const [format, handler] of ConversionOptions.entries()) {
-                if (format.to || handler.supportAnyInput) formats.push({
-                    fullName: format.name, // e.g. "Scalable Vector Graphics"
-                    formatName: format.format, // e.g. "svg"
-                    handlerName: handler.name, // e.g. "svgTrace"
-                    mime: format.mime, // e.g. "image/svg+xml"
-                    id: `${format.name}-${handler.name}-${format.mime}`, // e.g. Scalable Vector Graphics-svgTrace-image/svg+xml
-                    icon: faImageRegular,
-                })
-            }
-            console.debug("Conversion formats:", formats);
-            return formats;
-        } else throw new Error("Can't build format list! Failed to get global format list");
-    }
+function getConversionFormats(): FormatTypeCard[] {
+    if (ConversionOptions.size) {
+        const formats: FormatTypeCard[] = [];
+        for (const [format, handler] of ConversionOptions.entries()) {
+            if (format.to || handler.supportAnyInput) formats.push({
+                fullName: format.name, // e.g. "Scalable Vector Graphics"
+                formatName: format.format, // e.g. "svg"
+                handlerName: handler.name, // e.g. "svgTrace"
+                mime: format.mime, // e.g. "image/svg+xml"
+                id: `${format.name}-${handler.name}-${format.mime}`, // e.g. Scalable Vector Graphics-svgTrace-image/svg+xml
+                icon: faImageRegular,
+            })
+        }
+        console.debug("Conversion formats:", formats);
+        return formats;
+    } else throw new Error("Can't build format list! Failed to get global format list");
+}
+
+export default function Conversion({ }: ConversionPageProps) {
+    const AvailableConversionFormats: FormatTypeCard[] = getConversionFormats();
+    const [selectedFormat, setSelectedFormat] = useState<FormatTypeCard | null>(null);
 
     return (
         <div className="conversion-body">
