@@ -1,11 +1,11 @@
 import { Icon } from "../Icon";
-import FormatCard, {type FormatType} from "./FormatCard";
+import FormatCard, { type FormatType } from "./FormatCard";
 import SideNav, { type FormatCategory } from "./SideNav";
 import faMagnifyingGlassSolid from '../../img/fa-magnifying-glass-solid-full.svg';
 import { useDebouncedCallback } from 'use-debounce';
 
 import './FormatExplorer.css';
-import {useState} from "preact/hooks";
+import { useState } from "preact/hooks";
 
 export type FormatTypeCard = FormatType & { id: string; handlerName: string }
 
@@ -19,7 +19,7 @@ interface FormatExplorerProps {
     debounceWaitMs?: number;
 }
 
-export default function FormatExplorer({ categories, conversionFormats, onSelect, debounceWaitMs = 250}: FormatExplorerProps) {
+export default function FormatExplorer({ categories, conversionFormats, onSelect, debounceWaitMs = 250 }: FormatExplorerProps) {
     const [formatCards, setFormatCards] = useState(conversionFormats);
     const [selectedFormatId, setSelectedFormatId] = useState<string | null>(null);
 
@@ -37,10 +37,12 @@ export default function FormatExplorer({ categories, conversionFormats, onSelect
         })
         return filteredFormats;
     }
+
     /**
      * Search within these properties of the format cards
      */
     const searchProps: SearchProps = new Set(['fullName', 'format', 'mime']);
+
     /**
      * Debounce handler for the search.
      * If the input is empty, return all formats
@@ -62,7 +64,7 @@ export default function FormatExplorer({ categories, conversionFormats, onSelect
 
     return (
         <div className="format-explorer content-wrapper">
-            <SideNav items={ categories }/>
+            <SideNav items={ categories } />
 
             {/* Center Browser */ }
             <section className="format-browser">
