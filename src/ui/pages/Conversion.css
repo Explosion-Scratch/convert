@@ -63,7 +63,7 @@
         font-weight: 800;
         font-size: 1.1rem;
         cursor: pointer;
-        box-shadow: 0 4px 14px rgba(28, 119, 255, 0.3);
+        box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 30%, transparent);
         transition: all 0.2s;
 
         &:hover {
