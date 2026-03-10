@@ -51,7 +51,7 @@ export default function Conversion({ }: ConversionPageProps) {
             <SelectedFileInfo className="mobile-only" />
 
             <main className="conversion-main">
-                <FormatExplorer categories={ sidebarItems } conversionFormats={ AvailableConversionOptions } onSelect={ setSelectedOption } />
+                <FormatExplorer categories={ sidebarItems } conversionOptions={ AvailableConversionOptions } onSelect={ setSelectedOption } />
 
                 {/* Right Settings Sidebar / Bottom Settings Accordion */ }
                 <ConversionSidebar conversionData={ selectedOption } />
