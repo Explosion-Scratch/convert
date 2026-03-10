@@ -11,7 +11,9 @@ import { Mode, ModeEnum } from "./ui/ModeStore.js";
 type FileRecord = Record<`${string}-${string}`, File>
 
 /** Map of available formats and its handler */
-type ConversionOptionsMap = Map<FileFormat, FormatHandler>;
+export type ConversionOptionsMap = Map<FileFormat, FormatHandler>;
+/** A single conversion option, derived from `ConversionOptionsMap` */
+export type ConversionOption = ConversionOptionsMap extends Map<infer K, infer V> ? [K, V] : never;
 
 export const ConversionOptions: ConversionOptionsMap = new Map();
 

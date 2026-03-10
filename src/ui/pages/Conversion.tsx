@@ -11,9 +11,9 @@ import Footer from "../components/Footer";
 import ConversionSidebar from "../components/Conversion/ConversionSidebar";
 import SelectedFileInfo from "../components/Conversion/SelectedFileInfo";
 import ConversionHeader from "../components/Conversion/ConversionHeader";
-import { ConversionOptions } from 'src/main.new';
+import { ConversionOptions, type ConversionOptionsMap } from 'src/main.new';
 
-import FormatExplorer, { type FormatTypeCard } from "../components/Conversion/FormatExplorer.tsx";
+import FormatExplorer from "../components/Conversion/FormatExplorer.tsx";
 import { useState } from "preact/hooks";
 
 interface ConversionPageProps {
@@ -30,30 +30,18 @@ const sidebarItems: FormatCategory[] = [ // Placeholder categories
 ];
 
 /**
- * ! remove, pass direct format instead
- * Maps all supported formats into UI format cards
+ * Flimsy getter to check to see if the conversion backend
+ * borked and didn't return any conversion options
  */
-function getConversionFormats(): FormatTypeCard[] {
+function getConversionOptions() {
     if (ConversionOptions.size) {
-        const formats: FormatTypeCard[] = [];
-        for (const [format, handler] of ConversionOptions.entries()) {
-            if (format.to || handler.supportAnyInput) formats.push({
-                fullName: format.name, // e.g. "Scalable Vector Graphics"
-                formatName: format.format, // e.g. "svg"
-                handlerName: handler.name, // e.g. "svgTrace"
-                mime: format.mime, // e.g. "image/svg+xml"
-                id: `${format.name}-${handler.name}-${format.mime}`, // e.g. Scalable Vector Graphics-svgTrace-image/svg+xml
-                icon: faImageRegular,
-            })
-        }
-        console.debug("Conversion formats:", formats);
-        return formats;
+        return ConversionOptions
     } else throw new Error("Can't build format list! Failed to get global format list");
 }
 
 export default function Conversion({ }: ConversionPageProps) {
-    const AvailableConversionFormats: FormatTypeCard[] = getConversionFormats();
-    const [selectedFormat, setSelectedFormat] = useState<FormatTypeCard | null>(null);
+    const AvailableConversionOptions: ConversionOptionsMap = getConversionOptions();
+    const [selectedOption, setSelectedOption] = useState<ConversionOptionsMap | null>(null);
 
     return (
         <div className="conversion-body">
@@ -63,10 +51,10 @@ export default function Conversion({ }: ConversionPageProps) {
             <SelectedFileInfo className="mobile-only" />
 
             <main className="conversion-main">
-                <FormatExplorer categories={ sidebarItems } conversionFormats={ AvailableConversionFormats } onSelect={ setSelectedFormat } />
+                <FormatExplorer categories={ sidebarItems } conversionFormats={ AvailableConversionOptions } onSelect={ setSelectedOption } />
 
                 {/* Right Settings Sidebar / Bottom Settings Accordion */ }
-                <ConversionSidebar conversionData={ selectedFormat } />
+                <ConversionSidebar conversionData={ selectedOption } />
             </main>
             <Footer visible={ false } />
         </div>
