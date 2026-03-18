@@ -55,7 +55,9 @@ class qoaFuHandler implements FormatHandler {
       mime: "audio/x-qoa", // I have to put something here
       from: true,
       to: true,
-      internal: "qoa"
+      internal: "qoa",
+      category: "audio",
+      lossless: false
     }
   ];
   public ready: boolean = false;
@@ -115,7 +117,7 @@ this.supportedFormats.push(CommonFormats.FLAC.builder("flac").allowFrom(true).al
           wav.fromScratch(decoder.getChannels(), decoder.getSampleRate(), "16", audioData);
 
           const wavBytes = wav.toBuffer();
-          const name = inputFile.name.split(".")[0]+".wav";
+          const name = inputFile.name.split(".").slice(0, -1).join(".")+".wav";
           outputFiles.push({bytes: wavBytes, name});
         }
     } else { // any audio => QOA
@@ -155,7 +157,7 @@ this.supportedFormats.push(CommonFormats.FLAC.builder("flac").allowFrom(true).al
         }
 
         const qoaBytes = encoder.getData();
-        const name = inputFile.name.split(".")[0]+".qoa";
+        const name = inputFile.name.split(".").slice(0, -1).join(".")+".qoa";
         outputFiles.push({bytes: qoaBytes, name});
       }
     }

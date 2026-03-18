@@ -24,7 +24,9 @@ class peToZipHandler implements FormatHandler {
       mime: "application/vnd.microsoft.portable-executable",
       from: true,
       to: false,
-      internal: "dll"
+      internal: "dll",
+      category: "code",
+      lossless: false
     },
     CommonFormats.ZIP.builder("zip").allowTo().markLossless()
   ];
@@ -101,7 +103,7 @@ class peToZipHandler implements FormatHandler {
           compressionOptions: { level: 9 }
         });
         
-        const baseName = inputFile.name.split(".")[0];
+        const baseName = inputFile.name.split(".").slice(0, -1).join(".");
         const newName = `${baseName}_pe_data.zip`;
 
         outputFiles.push({

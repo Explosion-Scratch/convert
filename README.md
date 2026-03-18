@@ -29,7 +29,7 @@ There are thousands of file formats out there. It can take hours to add support 
 
 When suggesting a file format, you must _at minimum_:
 - Make sure that there isn't already an issue about the same thing, and that we don't already support the format.
-- Explain what you expect the conversion to be like (what medium is it converting to/from). It's important to note here that simply parsing the underlying data is _not sufficient_. Imagine if we only treated SVG images as raw XML data and didn't support converting them to raster images - that would defeat the point.
+- Explain what you expect the conversion to be like (what medium is it converting to/from). It's important to note here that simply parsing the underlying data is _not sufficient_. Imagine if we only treated SVG images as raw XML data and didn't support converting them to raster images - that would defeat the point. In other words, try to avoid crude "binary waterfalls".
 - Provide links to existing browser-based solutions if possible, or at the very least a reference for implementing the format, and make sure the license is compatible with GPL-2.0.
 
 If this seems like a lot, please remember - a developer will have to do 100x more work to actually implement the format. Doing a bit of research not only saves them precious time, it also weeds out "unserious" proposals that would only bloat our to-do list.
@@ -52,6 +52,8 @@ _The following steps are optional, but recommended for performance:_
 When you first open the page, it'll take a while to generate the list of supported formats for each tool. If you open the console, you'll see it complaining a bunch about missing caches.
 
 After this is done (indicated by a `Built initial format list` message in the console), use `printSupportedFormatCache()` to get a JSON string with the cache data. You can then save this string to `cache.json` to skip that loading screen on startup.
+
+If you run into issues where your changes seem to not be applying, try disabling this cache.
 
 ### Docker (prebuilt image)
 
@@ -77,7 +79,9 @@ The first Docker build is expected to be slow because Chromium and related syste
 
 ## Contributing
 
-The best way to contribute is by adding support for new file formats (duh). Here's how that works:
+The best way to contribute is by adding support for new file formats (duh). If you don't have a format to add but are eager to help, take a look at our issues. There are plenty of suggestions there.
+
+Here's how adding a format works works:
 
 ### Creating a handler
 
@@ -143,7 +147,16 @@ There are a few additional things that I want to point out in particular:
 - The handler is responsible for setting the output file's name. This is done to allow for flexibility in rare cases where the _full_ file name matters. Of course, in most cases, you'll only have to swap the file extension.
 - The handler is also responsible for ensuring that any byte buffers that enter or exit the handler _do not get mutated_. If necessary, clone the buffer by wrapping it in `new Uint8Array()`.
 - When handling MIME types, run them through [normalizeMimeType](src/normalizeMimeType.ts) first. One file can have multiple valid MIME types, which isn't great when you're trying to match them algorithmically.
-- When implementing a new file format, please treat the file as the media that it represents, not the data that it contains. For example, if you were making an SVG handler, you should treat the file as an _image_, not as XML.
+- When implementing/suggesting a new file format, please treat the file as the media that it represents, not the data that it contains. For example, if you were making an SVG handler, you should treat the file as an _image_, not as XML. In other words, avoid simple "binary waterfalls", as they're not semantically meaningful.
+
+### Testing
+
+This project currently uses two levels of tests:
+
+- Broad project-level tests live directly in `test/` (for example graph traversal and end-to-end conversion smoke tests).
+- Optional handler-specific unit tests live in `test/handlers/`, using the file name pattern `<handlerName>.test.ts`. These are a good fit for handlers with meaningful parsing, serialization, or file-naming logic that is hard to exercise reliably through traversal alone.
+
+Not every handler needs a dedicated unit test, but handlers with non-trivial custom internal logic may benefit from having one.
 
 ### Adding dependencies
 
@@ -151,7 +164,21 @@ If your tool requires an external dependency (which it likely does), there are c
 
 - If it's an `npm` package, just install it to the project like you normally would.
 - If it's a Git repository, add it as a submodule to [src/handlers](src/handlers).
+- If neither of the above are available, then **as a last resort**, you may create a folder with the required assets under `src/handlers/handlerName`.
 
 **Please try to avoid CDNs (Content Delivery Networks).** They're really cool on paper, but they don't work well with TypeScript, and each one introduces a tiny bit of instability. For a project that leans heavily on external dependencies, those bits of instability can add up fast.
 
 - If you need to load a WebAssembly binary (or similar), add its path to [vite.config.js](vite.config.js) and target it under `/convert/wasm/`. **Do not link to node_modules**.
+
+### AI Usage Policy
+
+If you intend to use an LLM, agent-enabled IDE, or other AI-driven tool for your contribution, please follow these guidelines:
+
+- Clearly state that you've used an LLM, ideally in your pull request's description. Do not attempt to pass off an AI's work as your own. I'm far more likely to accept a pull request that openly admits to using AI than one that does but pretends it doesn't. Transparency helps the maintainer (me) know what to keep an eye out for (e.g. hallucinations), and helps you keep yourself in check.
+- Do not overindulge. If your contribution is trivial or simple enough to be written by hand, please opt to write it by hand. This is especially true if it's your first contribution. You're much more likely to retain knowledge and understanding about architectural details if you've familiarized yourself with the process hands-on first.
+- Keep the scope to things you _could_ do by hand. LLMs are tools, and this is a community-driven project. Orchestrating an AI to write logic that you don't fully comprehend is not only reckless for a community project, it's also disrespectful towards human contributors who took the time to research their additions. In other words, there should _never_ be a scenario where you _need_ an LLM.
+- Explain what you (and the LLM) are doing, in a way that makes it clear that you understand the changes you're making.
+
+Not adhering to these rules will likely get your pull request closed.
+
+I figure that there are people who'd prefer if I merged _zero_ AI-written code, but I believe that's simply not feasible. Just from a code integrity perspective, it's much safer to be transparent about AI usage and define clear guidelines than to make it a taboo and risk people "sneaking in" unvetted AI code. Making things illegal doesn't stop everyone from doing those things - some will still do them, just in secret and with less oversight.

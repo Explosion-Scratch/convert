@@ -4,6 +4,7 @@ function normalizeMimeType (mime: string) {
     case "audio/vnd.wave": return "audio/wav";
     case "application/ogg": return "audio/ogg";
     case "application/x-gzip": return "application/gzip";
+    case "application/x-zstd": return "application/zstd";
     case "image/x-icns": return "image/icns";
     case "image/x-icon": return "image/vnd.microsoft.icon";
     case "image/vtf": return "image/x-vtf";
@@ -33,6 +34,11 @@ function normalizeMimeType (mime: string) {
     case "application/musicxml": return "application/vnd.recordare.musicxml+xml";
     case "application/musicxml+xml": return "application/vnd.recordare.musicxml+xml";
     case "text/mathml": return "application/mathml+xml";
+    case "text/json": return "application/json";
+    case "text/x-json": return "application/json";
+    case "text/json5": return "application/json5";
+    case "application/x-json5": return "application/json5";
+    case "video/x-ms-wmv": return "video/x-ms-asf";
   }
   return mime;
 }

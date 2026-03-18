@@ -95,7 +95,7 @@ class canvasToBlobHandler implements FormatHandler {
       }
 
       let bytes: Uint8Array;
-      if(outputFormat.mime == "text/plain") {
+      if(outputFormat.mime === "text/plain") {
         const pixels = this.#ctx.getImageData(0, 0, this.#canvas.width, this.#canvas.height);
         bytes = new TextEncoder().encode(imageToText({
           width() { return pixels.width; },
@@ -115,7 +115,7 @@ class canvasToBlobHandler implements FormatHandler {
         });
       }
 
-      const name = inputFile.name.split(".")[0] + "." + outputFormat.extension;
+      const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
 
       outputFiles.push({ bytes, name });
 

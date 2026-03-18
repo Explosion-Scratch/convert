@@ -8,6 +8,7 @@ export default defineConfig({
     exclude: [
       "@ffmpeg/ffmpeg",
       "@sqlite.org/sqlite-wasm",
+      "@bokuweb/zstd-wasm"
     ]
   },
   base: "/convert/",
@@ -57,7 +58,15 @@ export default defineConfig({
         {
           src: "src/handlers/espeakng.js/js/espeakng.worker.data",
           dest: "js"
-        }
+        },
+        {
+          src: "node_modules/pdf-parse/dist/pdf-parse/web/pdf.worker.mjs",
+          dest: "js"
+        },
+        {
+          src: "src/handlers/tarCompressed/liblzma.wasm",
+          dest: "wasm"
+        },
       ]
     }),
     tsconfigPaths(),
