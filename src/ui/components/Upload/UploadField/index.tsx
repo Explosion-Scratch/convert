@@ -79,7 +79,7 @@ export default function UploadField({ disabled = false }: UploadFieldComponentPr
 					<h1>
 						<Icon
 							src={ logoImage }
-							size={ 60 }
+							size={ 48 }
 							color="var(--primary)"
 							className="upload-card-logo"
 						/>

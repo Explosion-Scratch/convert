@@ -104,6 +104,7 @@
 			.upload-card-dropzone-subtext {
 				color: var(--text-secondary);
 				font-size: 0.875rem;
+				padding: 0.75em;
 			}
 		}
 

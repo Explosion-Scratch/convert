@@ -2,7 +2,7 @@
     appearance: none;
     border: .1rem solid var(--btn-border);
     border-radius: 8px;
-    padding: .75em;
+    padding: .75em 1em;
     color: var(--btn-text-secondary);
     background: var(--btn-bg-secondary);
     transition: color 150ms, background 150ms;

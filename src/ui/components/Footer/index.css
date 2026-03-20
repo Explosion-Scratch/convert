@@ -10,14 +10,14 @@ footer {
 	margin-block: auto 0;
 
 	color: gray;
-	padding-block: .25em;
+	padding-block: .5em;
 	padding-inline: 1em;
 	background-color: var(--bg-section);
 
 	.footer-item {
 		display: flex;
 		align-items: center;
-		gap: .1em;
+		gap: .25em;
 		color: gray;
 		text-underline-offset: .25em;
 
@@ -26,7 +26,7 @@ footer {
 		}
 
 		img {
-			width: 25px;
+			width: 1.5em;
 			color: gray;
 			filter: contrast(0);
 		}

@@ -12,7 +12,7 @@ export default function ConversionHeader() {
             <div className="header-left">
                 <Icon
                     src={ logoImage }
-                    size={ 40 }
+                    size={ 32 }
                     color="var(--primary)"
                 />
                 <h1 className="conversion-title">Convert to it!</h1>
