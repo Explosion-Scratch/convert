@@ -279,6 +279,13 @@ const CommonFormats = {
         "exe",
         "application/vnd.microsoft.portable-executable",
         Category.CODE
+    ),
+    TYPST: new FormatDefinition(
+        "Typst Document",
+        "typst",
+        "typ",
+        "text/typst",
+        [Category.DOCUMENT, Category.TEXT]
     )
 }
 

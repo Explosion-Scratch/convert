@@ -68,6 +68,7 @@ import chessjsHandler from "./chessjs.ts";
 import fenToJsonHandler from "./fenToJson.ts";
 import piskelHandler from "./piskel.ts";
 import xcursorHandler from "./xcursor.ts";
+import TypstHandler from "./typst.ts";
 
 const handlers: FormatHandler[] = [];
 try { handlers.push(new svgTraceHandler()) } catch (_) { };
@@ -142,5 +143,6 @@ try { handlers.push(new chessjsHandler()) } catch (_) { };
 try { handlers.push(new fenToJsonHandler()) } catch (_) { };
 try { handlers.push(new piskelHandler()) } catch (_) { };
 try { handlers.push(new xcursorHandler()) } catch (_) { };
+try { handlers.push(new TypstHandler()) } catch (_) { };
 
 export default handlers;
