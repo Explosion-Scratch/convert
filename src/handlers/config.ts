@@ -1,4 +1,4 @@
-import { parseJSON, parseJSON5, parseYAML, parseTOML, parseINI, stringifyJSON, stringifyJSON5, stringifyYAML, stringifyTOML, stringifyINI } from "confbox";
+import { parseJSON, parseJSON5, parseJSONC, parseYAML, parseTOML, parseINI, stringifyJSON, stringifyJSON5, stringifyJSONC, stringifyYAML, stringifyTOML, stringifyINI } from "confbox";
 import CommonFormats, { Category } from "src/CommonFormats.ts";
 import { FormatDefinition, type FileData, type FileFormat, type FormatHandler } from "../FormatHandler.ts";
 
@@ -7,6 +7,14 @@ const JSON5_FORMAT = new FormatDefinition(
   "json5",
   "json5",
   "application/json5",
+  Category.DATA
+);
+
+const JSONC_FORMAT = new FormatDefinition(
+  "JSON Comments",
+  "jsonc",
+  "jsonc",
+  "application/jsonc",
   Category.DATA
 );
 
@@ -35,6 +43,7 @@ class configHandler implements FormatHandler {
     CommonFormats.JSON.builder("json").allowFrom().allowTo().markLossless(true),
     // JSON5, YAML, and TOML have comments and other features lost when parsed to JS Objects
     JSON5_FORMAT.builder("json5").allowFrom().allowTo().markLossless(false),
+    JSONC_FORMAT.builder("jsonc").allowFrom().allowTo().markLossless(false),
     CommonFormats.YML.builder("yaml").allowFrom().allowTo().markLossless(false),
     CommonFormats.YML.builder("yaml").withExt("yaml").allowFrom().allowTo().markLossless(false),
     TOML_FORMAT.builder("toml").allowFrom().allowTo().markLossless(false),
@@ -62,6 +71,9 @@ class configHandler implements FormatHandler {
         case "json5":
           object = parseJSON5(text);
           break;
+        case "jsonc":
+          object = parseJSONC(text);
+          break;
         case "yaml":
           object = parseYAML(text);
           break;
@@ -82,6 +94,9 @@ class configHandler implements FormatHandler {
           break;
         case "json5":
           outText = stringifyJSON5(object);
+          break;
+        case "jsonc":
+          outText = stringifyJSONC(object);
           break;
         case "yaml":
           outText = stringifyYAML(object);
