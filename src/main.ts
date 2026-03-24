@@ -33,20 +33,26 @@ const isMobileView = () => window.matchMedia("(max-width: 800px)").matches;
 
 const isOnMobileToStep = () => ui.formatContainers.classList.contains("mobile-step-to");
 
-const updateMobileConvertButton = () => {
-  if (!isMobileView()) return;
-  const hasFromSelected = !!document.querySelector("#from-list .selected");
-  const hasToSelected = !!document.querySelector("#to-list .selected");
+const updateConvertButton = () => {
+  const hasFromSelected = !!ui.inputList.querySelector(".selected");
+  const hasToSelected = !!ui.outputList.querySelector(".selected");
+
+  if (!isMobileView()) {
+    ui.convertButton.textContent = "Convert";
+    ui.convertButton.className = (hasFromSelected && hasToSelected) ? "" : "disabled";
+    return;
+  }
 
   if (isOnMobileToStep()) {
     ui.convertButton.textContent = "Convert";
     ui.convertButton.className = hasToSelected ? "" : "disabled";
   } else {
-    // Or "Select Output Format" but that was too long
     ui.convertButton.textContent = "Next";
     ui.convertButton.className = hasFromSelected ? "" : "disabled";
   }
 };
+
+window.addEventListener("resize", updateConvertButton);
 
 /**
  * Switches view to the format list of possible output formats
@@ -54,7 +60,7 @@ const updateMobileConvertButton = () => {
 const showMobileToStep = () => {
   ui.formatContainers.classList.add("mobile-step-to");
   ui.formatContainers.scrollIntoView({ behavior: "smooth", block: "start" });
-  updateMobileConvertButton();
+  updateConvertButton();
 };
 
 /** 
@@ -62,7 +68,7 @@ const showMobileToStep = () => {
  */
 const showMobileFromStep = () => {
   ui.formatContainers.classList.remove("mobile-step-to");
-  updateMobileConvertButton();
+  updateConvertButton();
 };
 
 ui.mobileBackButton.addEventListener("click", showMobileFromStep);
@@ -303,17 +309,7 @@ async function buildOptionList () {
         if (previous) previous.className = "";
         event.target.className = "selected";
 
-        if (isMobileView()) {
-          updateMobileConvertButton();
-          return;
-        } 
-
-        const allSelected = document.getElementsByClassName("selected");
-        if (allSelected.length === 2) {
-          ui.convertButton.className = "";
-        } else {
-          ui.convertButton.className = "disabled";
-        }
+        updateConvertButton();
       };
 
       if (format.from && addToInputs) {
