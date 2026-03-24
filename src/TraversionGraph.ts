@@ -392,6 +392,7 @@ export class TraversionGraph {
             });
             if (iterations % LOG_FREQUENCY === 0) {
                 console.log(`Still searching... Iterations: ${iterations}, Paths found: ${pathsFound}, Queue length: ${queue.size()}`);
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
         }
         console.log(`Path search completed. Total iterations: ${iterations}, Total paths found: ${pathsFound}`);

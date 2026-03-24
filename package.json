@@ -43,10 +43,13 @@
     }
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.8.7",
+    "@types/html2pdf.js": "^0.10.0",
     "@types/jszip": "^3.4.0",
     "@types/opentype.js": "^1.3.9",
     "electron": "^40.6.0",
     "electron-builder": "^26.8.1",
+    "happy-dom": "^20.8.7",
     "puppeteer": "^24.36.0",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
@@ -75,6 +78,8 @@
     "bson": "^7.2.0",
     "celaria-formats": "^1.0.2",
     "chess.js": "^1.4.0",
+    "epubjs": "^0.3.93",
+    "html2pdf.js": "^0.14.0",
     "imagetracer": "^0.2.2",
     "js-synthesizer": "^1.11.0",
     "json5": "^2.2.3",
