@@ -2,6 +2,7 @@ import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./For
 import normalizeMimeType from "./normalizeMimeType.js";
 import handlers from "./handlers";
 import { TraversionGraph } from "./TraversionGraph.js";
+import { createConvertContext, createConversionAbortController, resetProgress, setProgress } from "./progress.js";
 
 /** Files currently selected for conversion */
 let selectedFiles: File[] = [];
@@ -363,11 +364,12 @@ ui.modeToggleButton.addEventListener("click", () => {
 
 let deadEndAttempts: ConvertPathNode[][];
 
+let conversionAbortController: AbortController | null = null;
+
 async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
 
   const pathString = path.map(c => c.format.format).join(" → ");
 
-  // Exit early if we've encountered a known dead end
   for (const deadEnd of deadEndAttempts) {
     let isDeadEnd = true;
     for (let i = 0; i < deadEnd.length; i++) {
@@ -382,14 +384,20 @@ async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
     }
   }
 
-  ui.popupBox.innerHTML = `<h2>Finding conversion route...</h2>
-    <p>Trying <b>${pathString}</b>...</p>`;
+  setProgress(`Trying ${pathString}...`, 0);
 
+  const signal = conversionAbortController?.signal;
+
+  const totalSteps = path.length - 1;
   for (let i = 0; i < path.length - 1; i ++) {
+    if (signal?.aborted) return null;
+
     const handler = path[i + 1].handler;
+    const ctx = createConvertContext(handler.name, signal);
     try {
       let supportedFormats = window.supportedFormatCache.get(handler.name);
       if (!handler.ready) {
+        ctx.log(`Initializing ${handler.name}...`);
         await handler.init();
         if (!handler.ready) throw `Handler "${handler.name}" not ready after init.`;
         if (handler.supportedFormats) {
@@ -404,26 +412,29 @@ async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
         && c.format === path[i].format.format
       ) || (handler.supportAnyInput ? path[i].format : undefined);
       if (!inputFormat) throw `Handler "${handler.name}" doesn't support the "${path[i].format.format}" format.`;
+      ctx.log(`Converting ${path[i].format.format} → ${path[i + 1].format.format}`);
+      setProgress(`${handler.name}: ${path[i].format.format} → ${path[i + 1].format.format}`, i / totalSteps);
       files = (await Promise.all([
-        handler.doConvert(files, inputFormat, path[i + 1].format),
-        // Ensure that we wait long enough for the UI to update
+        handler.doConvert(files, inputFormat, path[i + 1].format, undefined, ctx),
         new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       ]))[0];
+      ctx.log(`Step ${i + 1}/${totalSteps} complete`);
       if (files.some(c => !c.bytes.length)) throw "Output is empty.";
     } catch (e) {
+
+      if (e instanceof DOMException && e.name === "AbortError") {
+        throw e;
+      }
 
       console.log(path.map(c => c.format.format));
       console.error(handler.name, `${path[i].format.format} → ${path[i + 1].format.format}`, e);
 
-      // Dead ends are added both to the graph and to the attempt system.
-      // The graph may still have old paths queued from before they were
-      // marked as dead ends, so we catch that here.
       const deadEndPath = path.slice(0, i + 2);
       deadEndAttempts.push(deadEndPath);
       window.traversionGraph.addDeadEndPath(path.slice(0, i + 2));
 
-      ui.popupBox.innerHTML = `<h2>Finding conversion route...</h2>
-        <p>Looking for a valid path...</p>`;
+      ctx.log(`Dead end: ${path[i].format.format} → ${path[i + 1].format.format}`);
+      setProgress("Looking for a valid path...", 0);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
       return null;
@@ -443,7 +454,7 @@ window.tryConvertByTraversing = async function (
   deadEndAttempts = [];
   window.traversionGraph.clearDeadEndPaths();
   for await (const path of window.traversionGraph.searchPath(from, to, simpleMode)) {
-    // Use exact output format if the target handler supports it
+    if (conversionAbortController?.signal.aborted) return null;
     if (path.at(-1)?.handler === to.handler) {
       path[path.length - 1] = to;
     }
@@ -504,13 +515,16 @@ ui.convertButton.onclick = async function () {
       inputFileData.push({ name: inputFile.name, bytes: inputBytes });
     }
 
-    window.showPopup("<h2>Finding conversion route...</h2>");
-    // Delay for a bit to give the browser time to render
+    resetProgress();
+    conversionAbortController = createConversionAbortController();
+    window.showPopup("");
+    setProgress("Finding conversion route...", 0);
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
     const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
     if (!output) {
       window.hidePopup();
+      if (conversionAbortController?.signal.aborted) return;
       alert("Failed to find conversion route.");
       return;
     }
@@ -527,6 +541,10 @@ ui.convertButton.onclick = async function () {
 
   } catch (e) {
 
+    if (e instanceof DOMException && e.name === "AbortError") {
+      window.hidePopup();
+      return;
+    }
     window.hidePopup();
     alert("Unexpected error while routing:\n" + e);
     console.error(e);

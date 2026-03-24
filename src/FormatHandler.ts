@@ -1,4 +1,6 @@
 
+import type { ConvertContext } from "./progress.js";
+
 /**
  * Definition of file format. Contains format defined constants like mime type and names
  */
@@ -185,13 +187,15 @@ export interface FormatHandler {
    * @param outputFormat Output {@link FileFormat}, the same for all outputs.
    * @param args Optional arguments as a string array.
    * Can be used to perform recursion with different settings.
+   * @param ctx Optional {@link ConvertContext} for progress/log reporting.
    * @returns Array of {@link FileData} entries, one per generated output file.
    */
   doConvert: (
     inputFiles: FileData[],
     inputFormat: FileFormat,
     outputFormat: FileFormat,
-    args?: string[]
+    args?: string[],
+    ctx?: ConvertContext
   ) => Promise<FileData[]>;
 }
 
