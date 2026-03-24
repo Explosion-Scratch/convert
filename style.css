@@ -131,11 +131,18 @@ button.selected {
   font-weight: bold;
 }
 
-#convert-button {
+#convert-container {
   position: fixed;
   left: 50%;
   bottom: 5%;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+#convert-button {
   font-size: 1.5rem;
   padding: 10px 20px;
   border: 0;
@@ -148,6 +155,10 @@ button.selected {
 .disabled {
   filter: grayscale(1);
   pointer-events: none;
+}
+
+#back-button {
+  display: none;
 }
 
 #popup-bg {
@@ -207,4 +218,30 @@ button.selected {
     font-size: 0.8rem;
     padding: 10px;
   }
+
+  #format-containers #to-container {
+    display: none;
+  }
+  #format-containers.mobile-step-to #from-container {
+    display: none;
+  }
+  #format-containers.mobile-step-to #to-container {
+    display: flex;
+  }
+
+  #format-containers.mobile-step-to ~ #convert-container #back-button {
+    display: block;
+    font-size: 1.5rem;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 10px;
+    background-color: var(--highlight-color);
+    color: white;
+    cursor: pointer;
+    line-height: 1;
+  }
+  #back-button:active {
+    opacity: 0.8;
+  }
 }
+

@@ -23,8 +23,49 @@ const ui = {
   inputSearch: document.querySelector("#search-from") as HTMLInputElement,
   outputSearch: document.querySelector("#search-to") as HTMLInputElement,
   popupBox: document.querySelector("#popup") as HTMLDivElement,
-  popupBackground: document.querySelector("#popup-bg") as HTMLDivElement
+  popupBackground: document.querySelector("#popup-bg") as HTMLDivElement,
+  formatContainers: document.querySelector("#format-containers") as HTMLDivElement,
+  mobileBackButton: document.querySelector("#back-button") as HTMLButtonElement
 };
+
+// Can be maybe moved to another util file - lmk
+const isMobileView = () => window.matchMedia("(max-width: 800px)").matches;
+
+const isOnMobileToStep = () => ui.formatContainers.classList.contains("mobile-step-to");
+
+const updateMobileConvertButton = () => {
+  if (!isMobileView()) return;
+  const hasFromSelected = !!document.querySelector("#from-list .selected");
+  const hasToSelected = !!document.querySelector("#to-list .selected");
+
+  if (isOnMobileToStep()) {
+    ui.convertButton.textContent = "Convert";
+    ui.convertButton.className = hasToSelected ? "" : "disabled";
+  } else {
+    // Or "Select Output Format" but that was too long
+    ui.convertButton.textContent = "Next";
+    ui.convertButton.className = hasFromSelected ? "" : "disabled";
+  }
+};
+
+/**
+ * Switches view to the format list of possible output formats
+ */
+const showMobileToStep = () => {
+  ui.formatContainers.classList.add("mobile-step-to");
+  ui.formatContainers.scrollIntoView({ behavior: "smooth", block: "start" });
+  updateMobileConvertButton();
+};
+
+/** 
+ * Shows the format list for the file uploaded (from)
+ */
+const showMobileFromStep = () => {
+  ui.formatContainers.classList.remove("mobile-step-to");
+  updateMobileConvertButton();
+};
+
+ui.mobileBackButton.addEventListener("click", showMobileFromStep);
 
 /**
  * Filters a list of butttons to exclude those not matching a substring.
@@ -261,6 +302,12 @@ async function buildOptionList () {
         const previous = targetParent?.getElementsByClassName("selected")?.[0];
         if (previous) previous.className = "";
         event.target.className = "selected";
+
+        if (isMobileView()) {
+          updateMobileConvertButton();
+          return;
+        } 
+
         const allSelected = document.getElementsByClassName("selected");
         if (allSelected.length === 2) {
           ui.convertButton.className = "";
@@ -307,6 +354,7 @@ async function buildOptionList () {
 
 ui.modeToggleButton.addEventListener("click", () => {
   simpleMode = !simpleMode;
+  showMobileFromStep();
   if (simpleMode) {
     ui.modeToggleButton.textContent = "Advanced mode";
     document.body.style.setProperty("--highlight-color", "#1C77FF");
@@ -418,6 +466,13 @@ function downloadFile (bytes: Uint8Array, name: string) {
 }
 
 ui.convertButton.onclick = async function () {
+
+  if (isMobileView() && !isOnMobileToStep()) {
+    const inputButton = document.querySelector("#from-list .selected");
+    if (!inputButton) return;
+    showMobileToStep();
+    return;
+  }
 
   const inputFiles = selectedFiles;
 
