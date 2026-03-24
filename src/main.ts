@@ -2,6 +2,7 @@ import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./For
 import normalizeMimeType from "./normalizeMimeType.js";
 import handlers from "./handlers";
 import { TraversionGraph } from "./TraversionGraph.js";
+import { createConvertContext, createConversionAbortController, resetProgress, setProgress } from "./progress.js";
 
 /** Files currently selected for conversion */
 let selectedFiles: File[] = [];
@@ -23,8 +24,55 @@ const ui = {
   inputSearch: document.querySelector("#search-from") as HTMLInputElement,
   outputSearch: document.querySelector("#search-to") as HTMLInputElement,
   popupBox: document.querySelector("#popup") as HTMLDivElement,
-  popupBackground: document.querySelector("#popup-bg") as HTMLDivElement
+  popupBackground: document.querySelector("#popup-bg") as HTMLDivElement,
+  formatContainers: document.querySelector("#format-containers") as HTMLDivElement,
+  mobileBackButton: document.querySelector("#back-button") as HTMLButtonElement
 };
+
+// Can be maybe moved to another util file - lmk
+const isMobileView = () => window.matchMedia("(max-width: 800px)").matches;
+
+const isOnMobileToStep = () => ui.formatContainers.classList.contains("mobile-step-to");
+
+const updateConvertButton = () => {
+  const hasFromSelected = !!ui.inputList.querySelector(".selected");
+  const hasToSelected = !!ui.outputList.querySelector(".selected");
+
+  if (!isMobileView()) {
+    ui.convertButton.textContent = "Convert";
+    ui.convertButton.className = (hasFromSelected && hasToSelected) ? "" : "disabled";
+    return;
+  }
+
+  if (isOnMobileToStep()) {
+    ui.convertButton.textContent = "Convert";
+    ui.convertButton.className = hasToSelected ? "" : "disabled";
+  } else {
+    ui.convertButton.textContent = "Next";
+    ui.convertButton.className = hasFromSelected ? "" : "disabled";
+  }
+};
+
+window.addEventListener("resize", updateConvertButton);
+
+/**
+ * Switches view to the format list of possible output formats
+ */
+const showMobileToStep = () => {
+  ui.formatContainers.classList.add("mobile-step-to");
+  ui.formatContainers.scrollIntoView({ behavior: "smooth", block: "start" });
+  updateConvertButton();
+};
+
+/** 
+ * Shows the format list for the file uploaded (from)
+ */
+const showMobileFromStep = () => {
+  ui.formatContainers.classList.remove("mobile-step-to");
+  updateConvertButton();
+};
+
+ui.mobileBackButton.addEventListener("click", showMobileFromStep);
 
 /**
  * Filters a list of butttons to exclude those not matching a substring.
@@ -261,12 +309,8 @@ async function buildOptionList () {
         const previous = targetParent?.getElementsByClassName("selected")?.[0];
         if (previous) previous.className = "";
         event.target.className = "selected";
-        const allSelected = document.getElementsByClassName("selected");
-        if (allSelected.length === 2) {
-          ui.convertButton.className = "";
-        } else {
-          ui.convertButton.className = "disabled";
-        }
+
+        updateConvertButton();
       };
 
       if (format.from && addToInputs) {
@@ -307,6 +351,7 @@ async function buildOptionList () {
 
 ui.modeToggleButton.addEventListener("click", () => {
   simpleMode = !simpleMode;
+  showMobileFromStep();
   if (simpleMode) {
     ui.modeToggleButton.textContent = "Advanced mode";
     document.body.style.setProperty("--highlight-color", "#1C77FF");
@@ -319,11 +364,12 @@ ui.modeToggleButton.addEventListener("click", () => {
 
 let deadEndAttempts: ConvertPathNode[][];
 
+let conversionAbortController: AbortController | null = null;
+
 async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
 
   const pathString = path.map(c => c.format.format).join(" → ");
 
-  // Exit early if we've encountered a known dead end
   for (const deadEnd of deadEndAttempts) {
     let isDeadEnd = true;
     for (let i = 0; i < deadEnd.length; i++) {
@@ -338,14 +384,20 @@ async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
     }
   }
 
-  ui.popupBox.innerHTML = `<h2>Finding conversion route...</h2>
-    <p>Trying <b>${pathString}</b>...</p>`;
+  setProgress(`Trying ${pathString}...`, 0);
 
+  const signal = conversionAbortController?.signal;
+
+  const totalSteps = path.length - 1;
   for (let i = 0; i < path.length - 1; i ++) {
+    if (signal?.aborted) return null;
+
     const handler = path[i + 1].handler;
+    const ctx = createConvertContext(handler.name, signal);
     try {
       let supportedFormats = window.supportedFormatCache.get(handler.name);
       if (!handler.ready) {
+        ctx.log(`Initializing ${handler.name}...`);
         await handler.init();
         if (!handler.ready) throw `Handler "${handler.name}" not ready after init.`;
         if (handler.supportedFormats) {
@@ -360,26 +412,29 @@ async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
         && c.format === path[i].format.format
       ) || (handler.supportAnyInput ? path[i].format : undefined);
       if (!inputFormat) throw `Handler "${handler.name}" doesn't support the "${path[i].format.format}" format.`;
+      ctx.log(`Converting ${path[i].format.format} → ${path[i + 1].format.format}`);
+      setProgress(`${handler.name}: ${path[i].format.format} → ${path[i + 1].format.format}`, i / totalSteps);
       files = (await Promise.all([
-        handler.doConvert(files, inputFormat, path[i + 1].format),
-        // Ensure that we wait long enough for the UI to update
+        handler.doConvert(files, inputFormat, path[i + 1].format, undefined, ctx),
         new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       ]))[0];
+      ctx.log(`Step ${i + 1}/${totalSteps} complete`);
       if (files.some(c => !c.bytes.length)) throw "Output is empty.";
     } catch (e) {
+
+      if (e instanceof DOMException && e.name === "AbortError") {
+        throw e;
+      }
 
       console.log(path.map(c => c.format.format));
       console.error(handler.name, `${path[i].format.format} → ${path[i + 1].format.format}`, e);
 
-      // Dead ends are added both to the graph and to the attempt system.
-      // The graph may still have old paths queued from before they were
-      // marked as dead ends, so we catch that here.
       const deadEndPath = path.slice(0, i + 2);
       deadEndAttempts.push(deadEndPath);
       window.traversionGraph.addDeadEndPath(path.slice(0, i + 2));
 
-      ui.popupBox.innerHTML = `<h2>Finding conversion route...</h2>
-        <p>Looking for a valid path...</p>`;
+      ctx.log(`Dead end: ${path[i].format.format} → ${path[i + 1].format.format}`);
+      setProgress("Looking for a valid path...", 0);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
       return null;
@@ -399,7 +454,7 @@ window.tryConvertByTraversing = async function (
   deadEndAttempts = [];
   window.traversionGraph.clearDeadEndPaths();
   for await (const path of window.traversionGraph.searchPath(from, to, simpleMode)) {
-    // Use exact output format if the target handler supports it
+    if (conversionAbortController?.signal.aborted) return null;
     if (path.at(-1)?.handler === to.handler) {
       path[path.length - 1] = to;
     }
@@ -418,6 +473,13 @@ function downloadFile (bytes: Uint8Array, name: string) {
 }
 
 ui.convertButton.onclick = async function () {
+
+  if (isMobileView() && !isOnMobileToStep()) {
+    const inputButton = document.querySelector("#from-list .selected");
+    if (!inputButton) return;
+    showMobileToStep();
+    return;
+  }
 
   const inputFiles = selectedFiles;
 
@@ -453,13 +515,16 @@ ui.convertButton.onclick = async function () {
       inputFileData.push({ name: inputFile.name, bytes: inputBytes });
     }
 
-    window.showPopup("<h2>Finding conversion route...</h2>");
-    // Delay for a bit to give the browser time to render
+    resetProgress();
+    conversionAbortController = createConversionAbortController();
+    window.showPopup("");
+    setProgress("Finding conversion route...", 0);
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
     const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
     if (!output) {
       window.hidePopup();
+      if (conversionAbortController?.signal.aborted) return;
       alert("Failed to find conversion route.");
       return;
     }
@@ -476,6 +541,10 @@ ui.convertButton.onclick = async function () {
 
   } catch (e) {
 
+    if (e instanceof DOMException && e.name === "AbortError") {
+      window.hidePopup();
+      return;
+    }
     window.hidePopup();
     alert("Unexpected error while routing:\n" + e);
     console.error(e);
