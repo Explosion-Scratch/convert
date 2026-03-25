@@ -1,0 +1,10 @@
+{
+  "selectedFiles": [
+    "src/handlers/typst.ts",
+    "src/handlers/pandoc.ts",
+    "src/main.ts"
+  ],
+  "timestamp": "2026-03-25T17:06:35.266Z",
+  "cwd": "/Users/tjs/Documents/.coding/repos/convert",
+  "prompt": "Why am I still getting the error epubjs-html epub → pdf [SourceDiagnostic { severity: Error, span: Span(286670239364627), message: \"failed to load file (access denied)\", trace: [], hints: [\"cannot read file outside of project root\", \"you can adjust the project root with the --root argument\"] }] This doesn't make sense - All the requisite files are properly provided via mapShadow but I still get the error. What's going on? How can I fix this? Investigate typst.ts in detail to figure out what I'm doing wrong."
+}

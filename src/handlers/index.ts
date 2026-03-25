@@ -71,11 +71,9 @@ import xcursorHandler from "./xcursor.ts";
 import cssHandler from "./css.ts";
 import TypstHandler from "./typst.ts";
 import EpubHandler from "./epub.ts";
-import HtmlToPdfHandler from "./htmlToPdf.ts";
 
 const handlers: FormatHandler[] = [];
 try { handlers.push(new EpubHandler()) } catch (_) { };
-try { handlers.push(new HtmlToPdfHandler()) } catch (_) { };
 try { handlers.push(new svgTraceHandler()) } catch (_) { };
 try { handlers.push(new canvasToBlobHandler()) } catch (_) { };
 try { handlers.push(new meydaHandler()) } catch (_) { };

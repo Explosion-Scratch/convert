@@ -3,6 +3,16 @@ import type { ConvertContext } from "../progress.ts";
 import CommonFormats from "src/CommonFormats.ts";
 import mime from "mime";
 import normalizeMimeType from "../normalizeMimeType.ts";
+import { MemoryAccessModel } from '@myriaddreamin/typst.ts/fs/memory';
+
+export function normalizeTypstAssetPaths(
+  typstContent: string,
+  _shadowFiles: Record<string, Uint8Array>,
+): string {
+  // Path normalization is no longer necessary. Typst handles relative
+  // paths correctly when files are mapped properly to the root directory.
+  return typstContent;
+}
 
 class pandocHandler implements FormatHandler {
 
@@ -61,7 +71,7 @@ class pandocHandler implements FormatHandler {
     ["opendocument", "OpenDocument XML"],
     ["opml", "OPML"],
     ["org", "Emacs Org mode"],
-    ["pdf", "PDF via Typst"],
+    ["pdf", CommonFormats.PDF.name],
     ["text", CommonFormats.TEXT.name],
     ["pod", "Perl POD"],
     ["pptx", CommonFormats.PPTX.name],
@@ -154,6 +164,7 @@ class pandocHandler implements FormatHandler {
   public supportedFormats?: FileFormat[];
   public ready: boolean = false;
 
+  private $typst?: any;
   private query?: (options: any) => Promise<any>;
   private convert?: (options: any, stdin: any, files: any) => Promise<{
     stdout: string;
@@ -178,8 +189,6 @@ class pandocHandler implements FormatHandler {
     this.supportedFormats = [];
     for (const internal of allFormats) {
       let format = internal;
-      // PDF doesn't seem to work, at least with this configuration
-      if (format === "pdf") continue;
       // RevealJS seems to hang forever?
       if (format === "revealjs") continue;
       // Adjust plaintext format name to match other handlers
@@ -234,6 +243,92 @@ class pandocHandler implements FormatHandler {
     this.ready = true;
   }
 
+  private async ensureTypst () {
+    if (this.$typst) return this.$typst;
+
+    // Make sure to import TypstSnippet here
+    const { TypstSnippet } = await import(
+      "@myriaddreamin/typst.ts/dist/esm/contrib/snippet.mjs"
+    );
+    const typst = new TypstSnippet();
+    typst.setCompilerInitOptions({
+      getModule: () =>
+        `${import.meta.env.BASE_URL}wasm/typst_ts_web_compiler_bg.wasm`,
+    });
+    typst.setRendererInitOptions({
+      getModule: () =>
+        `${import.meta.env.BASE_URL}wasm/typst_ts_renderer_bg.wasm`,
+    });
+
+    const accessModel = new MemoryAccessModel();
+
+    // FIX: Use the static method on TypstSnippet instead of the standalone function
+    typst.use(TypstSnippet.withAccessModel(accessModel));
+
+    this.$typst = typst;
+    return typst;
+  }
+
+
+  private async compilePdfFromTypst (
+    baseName: string,
+    typstContent: string,
+    shadowFiles: Record<string, Uint8Array>,
+  ): Promise<FileData> {
+    const $typst = await this.ensureTypst();
+
+    // Clears mapped files from previous compilations
+    await $typst.resetShadow();
+
+    // Map files using simple absolute paths.
+    for (const [path, bytes] of Object.entries(shadowFiles)) {
+      const cleanPath = path.replace(/\\/gu, "/").replace(/^\/+/u, "");
+      await $typst.mapShadow(`/${cleanPath}`, bytes);
+    }
+
+    // "media/d85ab71cf42ed34ae5471c62d4b25b62b739719e.jpg"
+    const re = /\("([^"\n]+)"\)/gu;
+    const match = typstContent.match(re);
+    const allMedia = match
+      ? match.map((i) => i.match(new RegExp(re, "u"))![1])
+      : [];
+
+    // Note: Reports none missing
+    console.log("Missing", allMedia.filter(i => !Object.keys(shadowFiles).includes(i)));
+
+    // Map the main file directly
+    await $typst.mapShadow('/main.typ', new TextEncoder().encode(typstContent));
+
+    // Compile with the simple absolute root `/`
+    const pdfData = await $typst.pdf({
+      mainFilePath: '/main.typ',
+      root: '/',
+    });
+
+    if (!pdfData || pdfData.length === 0) {
+      throw new Error("Typst compilation to PDF failed");
+    }
+
+    return {
+      name: `${baseName}.pdf`,
+      bytes: new Uint8Array(pdfData),
+    };
+  }
+
+  private async extractShadowFiles (
+    files: Record<string, any>,
+  ): Promise<Record<string, Uint8Array>> {
+    const shadowFiles: Record<string, Uint8Array> = {};
+
+    for (const [path, file] of Object.entries(files)) {
+      if (!(file instanceof Blob)) continue;
+      const ab = await file.arrayBuffer();
+      shadowFiles[path] = new Uint8Array(ab);
+    }
+
+    return shadowFiles;
+  }
+
   async doConvert (
     inputFiles: FileData[],
     inputFormat: FileFormat,
@@ -257,49 +352,82 @@ class pandocHandler implements FormatHandler {
       ctx?.progress(progressMsg, i / inputFiles.length);
       ctx?.log(progressMsg);
 
-      const files = {
-        [inputFile.name]: new Blob([inputFile.bytes as BlobPart])
+      const vfsInputName = inputFile.name.replace(/^.*[/\\]/, "") || "input.bin";
+      const files: Record<string, any> = {
+        [vfsInputName]: new Blob([inputFile.bytes as BlobPart])
       };
 
-      let options = {
-        from: inputFormat.internal,
-        to: outputFormat.internal,
-        "input-files": [inputFile.name],
-        "output-file": "output",
-        "embed-resources": true,
-        "html-math-method": "mathjax",
-      }
+      if (outputFormat.internal === "pdf") {
+        ctx?.log("Converting to Typst intermediate format...");
+        const mediaDirectoryName = "media";
+        const { stdout: typstContent, stderr, warnings } = await this.convert(
+          {
+            from: inputFormat.internal,
+            to: "typst",
+            standalone: true,
+            "input-files": [vfsInputName],
+            "extract-media": mediaDirectoryName,
+          },
+          null,
+          files,
+        );
 
-      // Set flag for outputting mathml
-      if (outputFormat.internal === "mathml") {
-        options.to = "html";
-        options["html-math-method"] = "mathml";
-      }
-
-      const { stderr, warnings } = await this.convert(options, null, files);
-
-      if (stderr) {
-        ctx?.log(`Pandoc Error: ${stderr}`, "error");
-        throw stderr;
-      }
-
-      if (warnings && warnings.length > 0) {
-        for (const warning of warnings) {
-          ctx?.log(`Pandoc Warning: ${JSON.stringify(warning)}`, "warn");
+        if (stderr) {
+          ctx?.log(`Pandoc Error: ${stderr}`, "error");
+          throw new Error(stderr);
         }
+        if (warnings?.length > 0) {
+          for (const warning of warnings) {
+            ctx?.log(`Pandoc Warning: ${JSON.stringify(warning)}`, "warn");
+          }
+        }
+        if (!typstContent) throw new Error("Pandoc produced no Typst output");
+
+        ctx?.log("Compiling PDF with Typst...");
+        const shadowFiles = await this.extractShadowFiles(files);
+        const baseName = inputFile.name.split(".").slice(0, -1).join(".");
+        console.log("Compiling to PDF from Typst:", { baseName, typstContent, shadowFiles });
+        outputFiles.push(await this.compilePdfFromTypst(baseName, typstContent, shadowFiles));
+      } else {
+        const options: Record<string, any> = {
+          from: inputFormat.internal,
+          to: outputFormat.internal,
+          "input-files": [vfsInputName],
+          "output-file": "output",
+          "embed-resources": true,
+          "html-math-method": "mathjax",
+        };
+
+        if (outputFormat.internal === "mathml") {
+          options.to = "html";
+          options["html-math-method"] = "mathml";
+        }
+
+        const { stderr, warnings } = await this.convert(options, null, files);
+
+        if (stderr) {
+          ctx?.log(`Pandoc Error: ${stderr}`, "error");
+          throw stderr;
+        }
+
+        if (warnings && warnings.length > 0) {
+          for (const warning of warnings) {
+            ctx?.log(`Pandoc Warning: ${JSON.stringify(warning)}`, "warn");
+          }
+        }
+
+        const outputBlob = files.output;
+        if (!(outputBlob instanceof Blob)) {
+          ctx?.log(`Pandoc failed to produce output for ${inputFile.name}`, "error");
+          continue;
+        }
+
+        const arrayBuffer = await outputBlob.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
+
+        outputFiles.push({ bytes, name });
       }
-
-      const outputBlob = files.output;
-      if (!(outputBlob instanceof Blob)) {
-        ctx?.log(`Pandoc failed to produce output for ${inputFile.name}`, "error");
-        continue;
-      }
-
-      const arrayBuffer = await outputBlob.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
-
-      outputFiles.push({ bytes, name });
       i++;
     }
 
