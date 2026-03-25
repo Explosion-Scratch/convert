@@ -2,7 +2,6 @@ import CommonFormats from "../CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
 import type { ConvertContext } from "../progress.ts";
 import ePub from "epubjs";
-import pandocHandler from "./pandoc.ts";
 
 function createScopedContext(ctx: ConvertContext | undefined, start: number, span: number): ConvertContext | undefined {
   if (!ctx) return undefined;
@@ -127,7 +126,6 @@ export default class EpubHandler implements FormatHandler {
   public supportedFormats: FileFormat[] = [
     CommonFormats.EPUB.supported("epub", true, false),
     CommonFormats.HTML.supported("html", false, true),
-    CommonFormats.PDF.supported("pdf", false, true),
   ];
 
   async init() {
@@ -142,32 +140,6 @@ export default class EpubHandler implements FormatHandler {
     ctx?: ConvertContext,
   ): Promise<FileData[]> {
     if (!this.ready) throw new Error("Handler not initialized.");
-
-    if (outputFormat.internal === "pdf") {
-      ctx?.log("EPUB handler: converting EPUB to inlined HTML...");
-      ctx?.progress("EPUB -> HTML", 0);
-      const htmlProgress = createScopedContext(ctx, 0, 0.6);
-      const htmlFiles = await this.doConvert(
-        inputFiles,
-        _inputFormat,
-        CommonFormats.HTML.supported("html", false, true, true),
-        undefined,
-        htmlProgress,
-      );
-
-      ctx?.log("EPUB handler: handing HTML to Pandoc for Typst/PDF generation...");
-      ctx?.progress("HTML -> Typst -> PDF", 0.6);
-      const pandocProgress = createScopedContext(ctx, 0.6, 0.4);
-      const pandoc = new pandocHandler();
-      await pandoc.init();
-      return await pandoc.doConvert(
-        htmlFiles,
-        CommonFormats.HTML.supported("html", true, false, true),
-        CommonFormats.PDF.supported("pdf", false, true),
-        undefined,
-        pandocProgress,
-      );
-    }
 
     const outputFiles: FileData[] = [];
     const progress = createScopedContext(ctx, 0, 1);

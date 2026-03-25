@@ -3,15 +3,297 @@ import type { ConvertContext } from "../progress.ts";
 import CommonFormats from "src/CommonFormats.ts";
 import mime from "mime";
 import normalizeMimeType from "../normalizeMimeType.ts";
-import { MemoryAccessModel } from '@myriaddreamin/typst.ts/fs/memory';
+
+export const TYPST_PAGEBREAK_MARKER = "CONVERTTYPSTPAGEBREAKTOKEN";
+const LEGACY_TYPST_PAGEBREAK_MARKERS = [
+  "__CONVERT_TYPST_PAGEBREAK__",
+  String.raw`\_\_CONVERT\_TYPST\_PAGEBREAK\_\_`,
+];
+export const TYPST_ASSET_MANIFEST_START = "// convert-assets-start";
+export const TYPST_ASSET_MANIFEST_END = "// convert-assets-end";
 
 export function normalizeTypstAssetPaths(
   typstContent: string,
-  _shadowFiles: Record<string, Uint8Array>,
+  shadowFiles: Record<string, Uint8Array>,
 ): string {
-  // Path normalization is no longer necessary. Typst handles relative
-  // paths correctly when files are mapped properly to the root directory.
-  return typstContent;
+  const availablePaths = new Map<string, string>();
+
+  for (const path of Object.keys(shadowFiles)) {
+    const normalized = path
+      .replace(/\\/gu, "/")
+      .replace(/^\/+/u, "")
+      .replace(/^\.\/+/u, "")
+      .replace(/^(?:\.\.\/)+/u, "");
+    availablePaths.set(normalized, path);
+  }
+
+  return typstContent.replace(/(["'])([^"'\\\n]+)\1/gu, (match, quote, candidatePath) => {
+    const normalized = candidatePath
+      .replace(/\\/gu, "/")
+      .replace(/^\/+/u, "")
+      .replace(/^\.\/+/u, "")
+      .replace(/^(?:\.\.\/)+/u, "");
+    const canonicalPath = availablePaths.get(normalized);
+    if (!canonicalPath) return match;
+    return `${quote}${canonicalPath}${quote}`;
+  });
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function parseStyleAttribute(style: string): Map<string, string> {
+  const entries = new Map<string, string>();
+
+  for (const declaration of style.split(";")) {
+    const separatorIndex = declaration.indexOf(":");
+    if (separatorIndex === -1) continue;
+
+    const property = declaration.slice(0, separatorIndex).trim().toLowerCase();
+    const value = declaration.slice(separatorIndex + 1).trim();
+    if (!property || !value) continue;
+
+    entries.set(property, value);
+  }
+
+  return entries;
+}
+
+function hasPageBreakValue(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "page" || normalized === "always";
+}
+
+function elementHasMeaningfulContent(element: Element): boolean {
+  if (element.children.length > 0) return true;
+  if ((element.textContent || "").trim().length > 0) return true;
+
+  return [
+    "img",
+    "svg",
+    "table",
+    "hr",
+    "video",
+    "audio",
+    "canvas",
+    "iframe",
+  ].includes(element.tagName.toLowerCase());
+}
+
+function shouldInsertPageBreakBefore(element: Element): boolean {
+  const classList = element.classList;
+  if (classList.contains("__page") || classList.contains("epub-section")) return true;
+
+  const styles = parseStyleAttribute(element.getAttribute("style") || "");
+  return hasPageBreakValue(styles.get("break-before"))
+    || hasPageBreakValue(styles.get("page-break-before"));
+}
+
+function shouldInsertPageBreakAfter(element: Element): boolean {
+  const styles = parseStyleAttribute(element.getAttribute("style") || "");
+  return hasPageBreakValue(styles.get("break-after"))
+    || hasPageBreakValue(styles.get("page-break-after"));
+}
+
+function createPageBreakMarker(document: Document): HTMLParagraphElement {
+  const marker = document.createElement("p");
+  marker.setAttribute("data-typst-pagebreak-marker", "true");
+  marker.textContent = TYPST_PAGEBREAK_MARKER;
+  return marker;
+}
+
+function appendTypstAttribute(
+  element: Element,
+  name: string,
+  value: string | undefined,
+) {
+  if (!value || element.hasAttribute(name)) return;
+  element.setAttribute(name, value);
+}
+
+function promoteImageDimensions(element: Element, styles: Map<string, string>) {
+  if (element.tagName.toLowerCase() !== "img") return;
+
+  const width = styles.get("width") || styles.get("max-width");
+  const height = styles.get("height") || styles.get("max-height");
+
+  if (width && !element.getAttribute("width")) {
+    element.setAttribute("width", width);
+  }
+  if (height && !element.getAttribute("height")) {
+    element.setAttribute("height", height);
+  }
+}
+
+function applyTypstStyleHints(element: Element) {
+  const style = element.getAttribute("style");
+  if (!style) return;
+
+  const styles = parseStyleAttribute(style);
+  if (styles.size === 0) return;
+
+  const tagName = element.tagName.toLowerCase();
+  const inlineTextContainer = [
+    "span",
+    "a",
+    "code",
+    "kbd",
+    "mark",
+    "small",
+    "sub",
+    "sup",
+  ].includes(tagName);
+  const blockContainer = [
+    "div",
+    "p",
+    "section",
+    "article",
+    "blockquote",
+    "pre",
+    "figure",
+    "table",
+    "td",
+    "th",
+  ].includes(tagName);
+
+  if (inlineTextContainer) {
+    appendTypstAttribute(element, "typst:text:fill", styles.get("color"));
+    appendTypstAttribute(element, "typst:text:size", styles.get("font-size"));
+    appendTypstAttribute(element, "typst:text:font", styles.get("font-family"));
+  }
+
+  if (blockContainer) {
+    appendTypstAttribute(
+      element,
+      "typst:fill",
+      styles.get("background") || styles.get("background-color"),
+    );
+    appendTypstAttribute(
+      element,
+      "typst:inset",
+      styles.get("padding"),
+    );
+    appendTypstAttribute(
+      element,
+      "typst:stroke",
+      styles.get("border"),
+    );
+
+    if (
+      styles.get("break-inside")?.toLowerCase() === "avoid"
+      || styles.get("page-break-inside")?.toLowerCase() === "avoid"
+    ) {
+      appendTypstAttribute(element, "typst:breakable", "false");
+    }
+  }
+
+  promoteImageDimensions(element, styles);
+}
+
+export function preprocessHtmlForTypst(htmlContent: string): string {
+  if (typeof DOMParser === "undefined") return htmlContent;
+
+  const document = new DOMParser().parseFromString(htmlContent, "text/html");
+  const elements = Array.from(document.body.querySelectorAll("*"));
+  let sawMeaningfulContent = false;
+
+  for (const element of elements) {
+    if (
+      shouldInsertPageBreakBefore(element)
+      && sawMeaningfulContent
+      && element.previousElementSibling?.getAttribute("data-typst-pagebreak-marker") !== "true"
+    ) {
+      element.before(createPageBreakMarker(document));
+    }
+
+    applyTypstStyleHints(element);
+
+    if (elementHasMeaningfulContent(element)) {
+      sawMeaningfulContent = true;
+    }
+
+    if (
+      shouldInsertPageBreakAfter(element)
+      && element.nextElementSibling?.getAttribute("data-typst-pagebreak-marker") !== "true"
+    ) {
+      element.after(createPageBreakMarker(document));
+    }
+  }
+
+  return "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+}
+
+export function postprocessTypstFromPandoc(typstContent: string): string {
+  const markerPatterns = [
+    TYPST_PAGEBREAK_MARKER,
+    ...LEGACY_TYPST_PAGEBREAK_MARKERS,
+  ].map(escapeRegExp);
+
+  return typstContent.replace(
+    new RegExp(`^.*(?:${markerPatterns.join("|")}).*$`, "gmu"),
+    "#pagebreak(weak: true)",
+  );
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
+}
+
+async function collectTypstAssetFiles(
+  files: Record<string, any>,
+  excludedPaths: string[] = [],
+): Promise<Record<string, Uint8Array>> {
+  const bundledAssets: Record<string, Uint8Array> = {};
+  const excluded = new Set([
+    "stdin",
+    "stdout",
+    "stderr",
+    "warnings",
+    "output",
+    ...excludedPaths,
+  ]);
+
+  for (const [path, file] of Object.entries(files)) {
+    if (excluded.has(path)) continue;
+    if (!(file instanceof Blob)) continue;
+
+    const arrayBuffer = await file.arrayBuffer();
+    bundledAssets[path] = new Uint8Array(arrayBuffer);
+  }
+
+  return bundledAssets;
+}
+
+export async function bundleTypstAssets(
+  typstContent: string,
+  files: Record<string, any>,
+  excludedPaths: string[] = [],
+): Promise<string> {
+  const shadowFiles = await collectTypstAssetFiles(files, excludedPaths);
+  const assetPaths = Object.keys(shadowFiles);
+
+  if (assetPaths.length === 0) return typstContent;
+  const bundledAssets = Object.fromEntries(
+    Object.entries(shadowFiles).map(([path, bytes]) => [path, bytesToBase64(bytes)]),
+  );
+
+  return [
+    TYPST_ASSET_MANIFEST_START,
+    `// ${JSON.stringify(bundledAssets)}`,
+    TYPST_ASSET_MANIFEST_END,
+    "",
+    typstContent,
+  ].join("\n");
 }
 
 class pandocHandler implements FormatHandler {
@@ -164,7 +446,6 @@ class pandocHandler implements FormatHandler {
   public supportedFormats?: FileFormat[];
   public ready: boolean = false;
 
-  private $typst?: any;
   private query?: (options: any) => Promise<any>;
   private convert?: (options: any, stdin: any, files: any) => Promise<{
     stdout: string;
@@ -191,6 +472,8 @@ class pandocHandler implements FormatHandler {
       let format = internal;
       // RevealJS seems to hang forever?
       if (format === "revealjs") continue;
+      // Typst compilation is handled by the dedicated Typst handler.
+      if (format === "pdf") continue;
       // Adjust plaintext format name to match other handlers
       if (format === "plain") format = "text";
       const name = pandocHandler.formatNames.get(format) || format;
@@ -213,10 +496,13 @@ class pandocHandler implements FormatHandler {
         || format === "odt"
         || format === "ods"
         || format === "odp";
+      const isEpubInput = format === "epub"
+        || format === "epub2"
+        || format === "epub3";
       this.supportedFormats.push({
         name, format, extension,
         mime: mimeType,
-        from: inputFormats.includes(internal),
+        from: inputFormats.includes(internal) && !isEpubInput,
         to: outputFormats.includes(internal),
         internal,
         category: categories.length === 1 ? categories[0] : categories,
@@ -229,6 +515,12 @@ class pandocHandler implements FormatHandler {
     const htmlFormat = this.supportedFormats[htmlIndex];
     this.supportedFormats.splice(htmlIndex, 1);
     this.supportedFormats.unshift(htmlFormat);
+    const typstIndex = this.supportedFormats.findIndex(c => c.internal === "typst");
+    if (typstIndex !== -1) {
+      const typstFormat = this.supportedFormats[typstIndex];
+      this.supportedFormats.splice(typstIndex, 1);
+      this.supportedFormats.splice(1, 0, typstFormat);
+    }
     // pandoc internal formats is almost always never what the user wants
     const jsonXmlFormats = this.supportedFormats.filter(c =>
       c.mime === "application/json"
@@ -241,92 +533,6 @@ class pandocHandler implements FormatHandler {
     this.supportedFormats.push(...jsonXmlFormats);
 
     this.ready = true;
-  }
-
-  private async ensureTypst () {
-    if (this.$typst) return this.$typst;
-
-    // Make sure to import TypstSnippet here
-    const { TypstSnippet } = await import(
-      "@myriaddreamin/typst.ts/dist/esm/contrib/snippet.mjs"
-    );
-    const typst = new TypstSnippet();
-    typst.setCompilerInitOptions({
-      getModule: () =>
-        `${import.meta.env.BASE_URL}wasm/typst_ts_web_compiler_bg.wasm`,
-    });
-    typst.setRendererInitOptions({
-      getModule: () =>
-        `${import.meta.env.BASE_URL}wasm/typst_ts_renderer_bg.wasm`,
-    });
-
-    const accessModel = new MemoryAccessModel();
-
-    // FIX: Use the static method on TypstSnippet instead of the standalone function
-    typst.use(TypstSnippet.withAccessModel(accessModel));
-
-    this.$typst = typst;
-    return typst;
-  }
-
-
-  private async compilePdfFromTypst (
-    baseName: string,
-    typstContent: string,
-    shadowFiles: Record<string, Uint8Array>,
-  ): Promise<FileData> {
-    const $typst = await this.ensureTypst();
-
-    // Clears mapped files from previous compilations
-    await $typst.resetShadow();
-
-    // Map files using simple absolute paths.
-    for (const [path, bytes] of Object.entries(shadowFiles)) {
-      const cleanPath = path.replace(/\\/gu, "/").replace(/^\/+/u, "");
-      await $typst.mapShadow(`/${cleanPath}`, bytes);
-    }
-
-    // "media/d85ab71cf42ed34ae5471c62d4b25b62b739719e.jpg"
-    const re = /\("([^"\n]+)"\)/gu;
-    const match = typstContent.match(re);
-    const allMedia = match
-      ? match.map((i) => i.match(new RegExp(re, "u"))![1])
-      : [];
-
-    // Note: Reports none missing
-    console.log("Missing", allMedia.filter(i => !Object.keys(shadowFiles).includes(i)));
-
-    // Map the main file directly
-    await $typst.mapShadow('/main.typ', new TextEncoder().encode(typstContent));
-
-    // Compile with the simple absolute root `/`
-    const pdfData = await $typst.pdf({
-      mainFilePath: '/main.typ',
-      root: '/',
-    });
-
-    if (!pdfData || pdfData.length === 0) {
-      throw new Error("Typst compilation to PDF failed");
-    }
-
-    return {
-      name: `${baseName}.pdf`,
-      bytes: new Uint8Array(pdfData),
-    };
-  }
-
-  private async extractShadowFiles (
-    files: Record<string, any>,
-  ): Promise<Record<string, Uint8Array>> {
-    const shadowFiles: Record<string, Uint8Array> = {};
-
-    for (const [path, file] of Object.entries(files)) {
-      if (!(file instanceof Blob)) continue;
-      const ab = await file.arrayBuffer();
-      shadowFiles[path] = new Uint8Array(ab);
-    }
-
-    return shadowFiles;
   }
 
   async doConvert (
@@ -353,81 +559,72 @@ class pandocHandler implements FormatHandler {
       ctx?.log(progressMsg);
 
       const vfsInputName = inputFile.name.replace(/^.*[/\\]/, "") || "input.bin";
+      const shouldNormalizeHtmlForTypst = inputFormat.internal === "html"
+        && (outputFormat.internal === "pdf" || outputFormat.internal === "typst");
+      const sourceBytes = shouldNormalizeHtmlForTypst
+        ? new TextEncoder().encode(
+          preprocessHtmlForTypst(new TextDecoder().decode(inputFile.bytes)),
+        )
+        : inputFile.bytes;
       const files: Record<string, any> = {
-        [vfsInputName]: new Blob([inputFile.bytes as BlobPart])
+        [vfsInputName]: new Blob([sourceBytes as BlobPart])
       };
 
-      if (outputFormat.internal === "pdf") {
-        ctx?.log("Converting to Typst intermediate format...");
-        const mediaDirectoryName = "media";
-        const { stdout: typstContent, stderr, warnings } = await this.convert(
-          {
-            from: inputFormat.internal,
-            to: "typst",
-            standalone: true,
-            "input-files": [vfsInputName],
-            "extract-media": mediaDirectoryName,
-          },
-          null,
-          files,
-        );
+      const options: Record<string, any> = {
+        from: inputFormat.internal,
+        to: outputFormat.internal,
+        "input-files": [vfsInputName],
+        "output-file": "output",
+        "embed-resources": true,
+        "html-math-method": "mathjax",
+      };
 
-        if (stderr) {
-          ctx?.log(`Pandoc Error: ${stderr}`, "error");
-          throw new Error(stderr);
-        }
-        if (warnings?.length > 0) {
-          for (const warning of warnings) {
-            ctx?.log(`Pandoc Warning: ${JSON.stringify(warning)}`, "warn");
-          }
-        }
-        if (!typstContent) throw new Error("Pandoc produced no Typst output");
-
-        ctx?.log("Compiling PDF with Typst...");
-        const shadowFiles = await this.extractShadowFiles(files);
-        const baseName = inputFile.name.split(".").slice(0, -1).join(".");
-        console.log("Compiling to PDF from Typst:", { baseName, typstContent, shadowFiles });
-        outputFiles.push(await this.compilePdfFromTypst(baseName, typstContent, shadowFiles));
-      } else {
-        const options: Record<string, any> = {
-          from: inputFormat.internal,
-          to: outputFormat.internal,
-          "input-files": [vfsInputName],
-          "output-file": "output",
-          "embed-resources": true,
-          "html-math-method": "mathjax",
-        };
-
-        if (outputFormat.internal === "mathml") {
-          options.to = "html";
-          options["html-math-method"] = "mathml";
-        }
-
-        const { stderr, warnings } = await this.convert(options, null, files);
-
-        if (stderr) {
-          ctx?.log(`Pandoc Error: ${stderr}`, "error");
-          throw stderr;
-        }
-
-        if (warnings && warnings.length > 0) {
-          for (const warning of warnings) {
-            ctx?.log(`Pandoc Warning: ${JSON.stringify(warning)}`, "warn");
-          }
-        }
-
-        const outputBlob = files.output;
-        if (!(outputBlob instanceof Blob)) {
-          ctx?.log(`Pandoc failed to produce output for ${inputFile.name}`, "error");
-          continue;
-        }
-
-        const arrayBuffer = await outputBlob.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
-
-        outputFiles.push({ bytes, name });
+      if (outputFormat.internal === "mathml") {
+        options.to = "html";
+        options["html-math-method"] = "mathml";
       }
+
+      if (outputFormat.internal === "typst") {
+        options.standalone = true;
+        options["extract-media"] = "media";
+      }
+
+      const { stderr, warnings } = await this.convert(options, null, files);
+
+      if (stderr) {
+        ctx?.log(`Pandoc Error: ${stderr}`, "error");
+        throw stderr;
+      }
+
+      if (warnings && warnings.length > 0) {
+        for (const warning of warnings) {
+          ctx?.log(`Pandoc Warning: ${JSON.stringify(warning)}`, "warn");
+        }
+      }
+
+      const outputBlob = files.output;
+      if (!(outputBlob instanceof Blob)) {
+        ctx?.log(`Pandoc failed to produce output for ${inputFile.name}`, "error");
+        continue;
+      }
+
+      const arrayBuffer = await outputBlob.arrayBuffer();
+      let bytes = new Uint8Array(arrayBuffer);
+      if (outputFormat.internal === "typst") {
+        const normalizedTypst = normalizeTypstAssetPaths(
+          postprocessTypstFromPandoc(new TextDecoder().decode(bytes)),
+          await collectTypstAssetFiles(files, [vfsInputName]),
+        );
+        const bundledTypst = await bundleTypstAssets(
+          normalizedTypst,
+          files,
+          [vfsInputName],
+        );
+        bytes = new TextEncoder().encode(bundledTypst);
+      }
+      const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
+
+      outputFiles.push({ bytes, name });
       i++;
     }
 
