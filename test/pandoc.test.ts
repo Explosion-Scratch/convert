@@ -39,7 +39,7 @@ test("preprocessHtmlForTypst adds Typst-friendly attributes from inline HTML sty
   expect(normalized).toContain('height="40pt"');
 });
 
-test("postprocessTypstFromPandoc rewrites standalone page break markers into Typst page breaks", () => {
+test("postprocessTypstFromPandoc rewrites standalone page break markers into Typst column breaks", () => {
   const typst = [
     "= Slide 1",
     "",
@@ -48,7 +48,7 @@ test("postprocessTypstFromPandoc rewrites standalone page break markers into Typ
     "= Slide 2",
   ].join("\n");
 
-  expect(postprocessTypstFromPandoc(typst)).toContain("#pagebreak(weak: true)");
+  expect(postprocessTypstFromPandoc(typst)).toContain("#colbreak(weak: true)");
 });
 
 test("bundleTypstAssets creates a Typst asset manifest that typst.ts can unpack", async () => {

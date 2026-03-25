@@ -233,7 +233,8 @@ export function postprocessTypstFromPandoc(typstContent: string): string {
 
   return typstContent.replace(
     new RegExp(`^.*(?:${markerPatterns.join("|")}).*$`, "gmu"),
-    "#pagebreak(weak: true)",
+    // Typst rejects page breaks inside containers; col breaks are valid here.
+    "#colbreak(weak: true)",
   );
 }
 
