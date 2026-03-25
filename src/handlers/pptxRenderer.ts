@@ -130,8 +130,6 @@ export default class PptxRendererHandler implements FormatHandler {
             ctx?.log(`Rasterizing slide ${slideIndex + 1}/${presentation.slides.length} to PNG...`);
 
 
-            console.log(handle.element.innerHTML);
-            throw new Error("test");
             const canvas = await html2canvas(handle.element, {
               backgroundColor: "#ffffff",
               scale: 2,
