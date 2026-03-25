@@ -75,6 +75,22 @@ function attemptConversion (
   );
 }
 
+function findPath(from: FileFormat, to: FileFormat) {
+  return page.evaluate(async (from, to) => {
+    const iterator = window.traversionGraph.searchPath(
+      { format: from, handler: { name: "test-from" } },
+      { format: to },
+      false,
+    );
+    const result = await iterator.next();
+    return result.value?.map((step: ConvertPathNode) => ({
+      handler: step.handler.name,
+      format: step.format.format,
+      mime: step.format.mime,
+    })) ?? null;
+  }, from, to);
+}
+
 // ==================================================================
 //                         START OF TESTS
 // ==================================================================
@@ -175,6 +191,43 @@ test("docx → html → svg → png → pdf", async () => {
   expect(fileSize).toBeWithin(55000, 65000);
 
 }, { timeout: 60000 });
+
+test("pptx → pdf uses pptx-renderer", async () => {
+  const path = await findPath(
+    CommonFormats.PPTX,
+    CommonFormats.PDF,
+  );
+
+  expect(path).toBeTruthy();
+  expect(path!.map(step => step.mime)).toEqual([
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/typst",
+    "application/pdf",
+  ]);
+  expect(path!.map(step => step.handler)).toEqual([
+    "test-from",
+    "pandoc",
+    "typst"
+  ]);
+}, { timeout: 60000 });
+
+test("pptx → pdf converts via pptx-renderer", async () => {
+  const conversion = await attemptConversion(
+    ["chart-and-complex.pptx"],
+    CommonFormats.PPTX,
+    CommonFormats.PDF,
+  );
+
+  expect(conversion).toBeTruthy();
+  expect(conversion!.path.map(c => c.format.mime)).toEqual([
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/pdf",
+  ]);
+  expect(conversion!.path[1].handler.name).toBe("pptx-renderer");
+
+  const fileSize = Object.values(conversion!.files[0].bytes).length;
+  expect(fileSize).toBeGreaterThan(10_000);
+}, { timeout: 120000 });
 
 test("md → docx", async () => {
 
