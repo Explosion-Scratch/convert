@@ -57,6 +57,7 @@
     "vite-tsconfig-paths": "^6.0.5"
   },
   "dependencies": {
+    "7z-wasm": "^1.2.0",
     "@aiden0z/pptx-renderer": "^1.0.2",
     "@bjorn3/browser_wasi_shim": "^0.4.2",
     "@bokuweb/zstd-wasm": "^0.0.27",
@@ -64,6 +65,7 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@flo-audio/reflo": "^0.1.2",
+    "@fontsource/noto-sans": "^5.2.10",
     "@imagemagick/magick-wasm": "^0.0.37",
     "@myriaddreamin/typst-ts-renderer": "^0.7.0-rc2",
     "@myriaddreamin/typst-ts-web-compiler": "^0.7.0-rc2",
@@ -76,7 +78,6 @@
     "@types/pako": "^2.0.4",
     "@types/papaparse": "^5.5.2",
     "@types/three": "^0.182.0",
-    "7z-wasm": "^1.2.0",
     "bson": "^7.2.0",
     "celaria-formats": "^1.0.2",
     "chess.js": "^1.4.0",
@@ -99,6 +100,8 @@
     "pdftoimg-js": "^0.2.5",
     "pe-library": "^2.0.1",
     "sass": "^1.98.0",
+    "satori": "^0.26.0",
+    "satori-html": "^0.3.2",
     "svg-pathdata": "^8.0.0",
     "three": "^0.182.0",
     "three-bvh-csg": "^0.0.17",

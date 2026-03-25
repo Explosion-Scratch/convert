@@ -225,8 +225,42 @@ test("pptx → pdf converts via pptx-renderer", async () => {
   expect(conversion!.path[1].handler.name).toBe("pptx-renderer");
 
   const fileSize = Object.values(conversion!.files[0].bytes).length;
-  expect(fileSize).toBeGreaterThan(10_000);
+  expect(fileSize).toBeGreaterThan(1_000);
 }, { timeout: 120000 });
+
+test("pptx → html uses pptx-renderer", async () => {
+  const path = await findPath(
+    CommonFormats.PPTX,
+    CommonFormats.HTML,
+  );
+
+  expect(path).toBeTruthy();
+  expect(path!.map(step => step.mime)).toEqual([
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/html",
+  ]);
+  expect(path!.map(step => step.handler)).toEqual([
+    "test-from",
+    "pptx-renderer",
+  ]);
+}, { timeout: 60000 });
+
+test("pptx → svg uses pptx-renderer", async () => {
+  const path = await findPath(
+    CommonFormats.PPTX,
+    CommonFormats.SVG,
+  );
+
+  expect(path).toBeTruthy();
+  expect(path!.map(step => step.mime)).toEqual([
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "image/svg+xml",
+  ]);
+  expect(path!.map(step => step.handler)).toEqual([
+    "test-from",
+    "pptx-renderer",
+  ]);
+}, { timeout: 60000 });
 
 test("epub → pdf path goes through html and typst", async () => {
   const path = await findPath(

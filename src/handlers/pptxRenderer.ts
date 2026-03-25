@@ -3,11 +3,16 @@ import {
   parseZip,
   renderSlide,
 } from "@aiden0z/pptx-renderer";
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
 import CommonFormats from "src/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
 import type { ConvertContext } from "../progress.ts";
+import TypstHandler from "./typst.ts";
+import { bundleTypstAssets } from "./pandoc.ts";
+import {
+  renderElementToSvg,
+  snapshotElementToStaticHtml,
+  type HtmlSnapshot,
+} from "./htmlToSvg.ts";
 
 async function waitForSlideToSettle(element: HTMLElement): Promise<void> {
   const imagePromises = Array.from(element.querySelectorAll("img"))
@@ -26,27 +31,45 @@ async function waitForSlideToSettle(element: HTMLElement): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 100));
 }
 
-async function canvasToPngDataUrl(canvas: HTMLCanvasElement): Promise<string> {
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(blob => {
-      if (!blob) {
-        reject(new Error("Failed to encode rendered slide as PNG."));
-        return;
-      }
-      resolve(blob);
-    }, "image/png");
-  });
-
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => resolve(String(reader.result)));
-    reader.addEventListener("error", () => reject(reader.error));
-    reader.readAsDataURL(blob);
-  });
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return Uint8Array.from(bytes).buffer;
 }
 
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+function buildStandaloneSlideHtml(snapshot: HtmlSnapshot): string {
+  return [
+    "<!DOCTYPE html>",
+    '<html lang="en">',
+    "<head>",
+    '<meta charset="utf-8">',
+    "</head>",
+    '<body style="margin:0;background:#ffffff;">',
+    snapshot.html,
+    "</body>",
+    "</html>",
+  ].join("");
+}
+
+function pxToInches(px: number): string {
+  return `${(px / 96).toFixed(4)}in`;
+}
+
+function createSlideTypst(
+  slidePaths: string[],
+  presentationWidth: number,
+  presentationHeight: number,
+): string {
+  const pageWidth = pxToInches(presentationWidth);
+  const pageHeight = pxToInches(presentationHeight);
+  const pages = slidePaths.map((path, index) => [
+    `#image("${path}", width: 100%, height: 100%)`,
+    index < slidePaths.length - 1 ? "#pagebreak()" : "",
+  ].filter(Boolean).join("\n")).join("\n\n");
+
+  return [
+    `#set page(width: ${pageWidth}, height: ${pageHeight}, margin: 0pt)`,
+    "",
+    pages,
+  ].join("\n");
 }
 
 export default class PptxRendererHandler implements FormatHandler {
@@ -56,11 +79,24 @@ export default class PptxRendererHandler implements FormatHandler {
 
   public supportedFormats: FileFormat[] = [
     CommonFormats.PPTX.supported("pptx", true, false),
+    CommonFormats.HTML.supported("html", false, true, true),
+    CommonFormats.SVG.supported("svg", false, true),
     CommonFormats.PDF.supported("pdf", false, true),
   ];
 
+  private typstHandler?: TypstHandler;
+
   async init() {
     this.ready = true;
+  }
+
+  private async getTypstHandler(): Promise<TypstHandler> {
+    if (!this.typstHandler) {
+      this.typstHandler = new TypstHandler();
+      await this.typstHandler.init();
+    }
+
+    return this.typstHandler;
   }
 
   async doConvert(
@@ -71,7 +107,10 @@ export default class PptxRendererHandler implements FormatHandler {
     ctx?: ConvertContext,
   ): Promise<FileData[]> {
     if (!this.ready) throw new Error("Handler not initialized.");
-    if (inputFormat.internal !== "pptx" || outputFormat.internal !== "pdf") {
+    if (
+      inputFormat.internal !== "pptx"
+      || !["html", "svg", "pdf"].includes(outputFormat.internal)
+    ) {
       throw new Error("Invalid conversion requested.");
     }
 
@@ -99,16 +138,10 @@ export default class PptxRendererHandler implements FormatHandler {
         }
 
         const pageFormat: [number, number] = [presentation.width, presentation.height];
-        const orientation = presentation.width >= presentation.height
-          ? "landscape"
-          : "portrait";
-        const pdf = new jsPDF({
-          orientation,
-          unit: "px",
-          format: pageFormat,
-          compress: true,
-        });
         const mediaUrlCache = new Map<string, string>();
+        const baseName = inputFile.name.replace(/\.[^.]+$/u, "");
+        const slideHtmlSnapshots: HtmlSnapshot[] = [];
+        const slideSvgs: { name: string; svg: string }[] = [];
 
         for (const [slideIndex, slide] of presentation.slides.entries()) {
           const slideLabel = `Rendering slide ${slideIndex + 1}/${presentation.slides.length} from ${inputFile.name}...`;
@@ -127,47 +160,77 @@ export default class PptxRendererHandler implements FormatHandler {
             stagingRoot.appendChild(handle.element);
 
             await waitForSlideToSettle(handle.element);
-            ctx?.log(`Rasterizing slide ${slideIndex + 1}/${presentation.slides.length} to PNG...`);
-
-
-            const canvas = await html2canvas(handle.element, {
-              backgroundColor: "#ffffff",
-              scale: 2,
-              useCORS: true,
-              logging: false,
+            const snapshot = await snapshotElementToStaticHtml(handle.element, {
               width: presentation.width,
               height: presentation.height,
-              windowWidth: presentation.width,
-              windowHeight: presentation.height,
+              backgroundColor: "#ffffff",
             });
-            const pngDataUrl = await canvasToPngDataUrl(canvas);
+            slideHtmlSnapshots.push(snapshot);
 
-            if (slideIndex > 0) {
-              pdf.addPage(pageFormat, orientation);
+            if (outputFormat.internal === "svg" || outputFormat.internal === "pdf") {
+              ctx?.log(`Converting slide ${slideIndex + 1}/${presentation.slides.length} to SVG...`);
+              const svg = await renderElementToSvg(handle.element, {
+                width: presentation.width,
+                height: presentation.height,
+                backgroundColor: "#ffffff",
+              });
+              slideSvgs.push({
+                name: `${baseName}.slide-${String(slideIndex + 1).padStart(2, "0")}.svg`,
+                svg,
+              });
             }
-            pdf.addImage(
-              pngDataUrl,
-              "PNG",
-              0,
-              0,
-              presentation.width,
-              presentation.height,
-              undefined,
-              "FAST",
-            );
           } finally {
             stagingRoot.replaceChildren();
             handle.dispose();
           }
         }
 
-        ctx?.log(`Combining slide PNGs into PDF for ${inputFile.name}...`);
-        const pdfBytes = new Uint8Array(pdf.output("arraybuffer"));
-        const baseName = inputFile.name.replace(/\.[^.]+$/u, "");
-        outputFiles.push({
-          name: `${baseName}.pdf`,
-          bytes: pdfBytes,
-        });
+        if (outputFormat.internal === "html") {
+          for (const [slideIndex, snapshot] of slideHtmlSnapshots.entries()) {
+            outputFiles.push({
+              name: `${baseName}.slide-${String(slideIndex + 1).padStart(2, "0")}.html`,
+              bytes: new TextEncoder().encode(buildStandaloneSlideHtml(snapshot)),
+            });
+          }
+        } else if (outputFormat.internal === "svg") {
+          for (const slide of slideSvgs) {
+            outputFiles.push({
+              name: slide.name,
+              bytes: new TextEncoder().encode(slide.svg),
+            });
+          }
+        } else {
+          ctx?.log(`Building Typst document from slide SVGs for ${inputFile.name}...`);
+          const assetFiles = Object.fromEntries(
+            slideSvgs.map((slide, slideIndex) => [
+              `slides/slide-${String(slideIndex + 1).padStart(2, "0")}.svg`,
+              new Blob([slide.svg], { type: "image/svg+xml" }),
+            ]),
+          );
+          const typstSource = createSlideTypst(
+            Object.keys(assetFiles),
+            pageFormat[0],
+            pageFormat[1],
+          );
+          const bundledTypst = await bundleTypstAssets(typstSource, assetFiles);
+          const typstHandler = await this.getTypstHandler();
+          const [pdfFile] = await typstHandler.doConvert(
+            [{
+              name: `${baseName}.typ`,
+              bytes: new TextEncoder().encode(bundledTypst),
+            }],
+            CommonFormats.TYPST.supported("typst", true, false),
+            CommonFormats.PDF.supported("pdf", false, true),
+          );
+          outputFiles.push({
+            name: `${baseName}.pdf`,
+            bytes: pdfFile.bytes,
+          });
+        }
+
+        for (const blobUrl of mediaUrlCache.values()) {
+          URL.revokeObjectURL(blobUrl);
+        }
       }
     } finally {
       stagingRoot.remove();
