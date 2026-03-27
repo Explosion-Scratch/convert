@@ -1,26 +1,27 @@
 import { Loader2, ArrowRight } from "lucide-preact";
+import type { FileFormat } from "src/FormatHandler";
+import FileIcon from "src/ui/components/FileIcon";
 import FileInfoBadge from "src/ui/components/FileInfo";
 import "./index.css";
 
 interface LoadingScreenProps {
 	fileName: string;
 	fileSize?: number;
-	fromFormat?: string;
-	toFormat?: string;
-	fromExtension?: string;
-	toExtension?: string;
+	from?: FileFormat;
+	to?: FileFormat;
 	statusText?: string;
 }
 
 export default function LoadingScreen({
 	fileName,
 	fileSize,
-	fromFormat,
-	toFormat,
-	fromExtension,
-	toExtension,
-	statusText = "Finding conversion route..."
+	from,
+	to,
+	statusText = "Finding conversion route...",
 }: LoadingScreenProps) {
+	const fromExt = from?.extension?.toUpperCase();
+	const toExt = to?.extension?.toUpperCase();
+
 	return (
 		<div className="loading-screen">
 			<div className="loading-spinner-wrap">
@@ -30,14 +31,30 @@ export default function LoadingScreen({
 			<h2 className="loading-title">{statusText}</h2>
 
 			<div className="loading-conversion-info">
-				{fromFormat && (
-					<span className="loading-format-badge">{fromExtension?.toUpperCase() || fromFormat}</span>
+				{from && (
+					<div className="loading-format-pill" aria-hidden="true">
+						<FileIcon
+							extension={from.extension}
+							mimeType={from.mime}
+							category={from.category}
+							size={18}
+						/>
+						<span className="loading-format-ext">.{fromExt}</span>
+					</div>
 				)}
-				{fromFormat && toFormat && (
-					<ArrowRight size={18} className="loading-arrow" />
+				{from && to && (
+					<ArrowRight size={24} className="loading-arrow" aria-hidden="true" />
 				)}
-				{toFormat && (
-					<span className="loading-format-badge">{toExtension?.toUpperCase() || toFormat}</span>
+				{to && (
+					<div className="loading-format-pill" aria-hidden="true">
+						<FileIcon
+							extension={to.extension}
+							mimeType={to.mime}
+							category={to.category}
+							size={18}
+						/>
+						<span className="loading-format-ext">.{toExt}</span>
+					</div>
 				)}
 			</div>
 
@@ -45,7 +62,7 @@ export default function LoadingScreen({
 				<FileInfoBadge
 					fileName={fileName}
 					fileSize={fileSize}
-					extension={fromExtension}
+					extension={from?.extension}
 				/>
 			</div>
 		</div>

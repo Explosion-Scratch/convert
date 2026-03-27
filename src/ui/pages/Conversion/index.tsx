@@ -274,10 +274,8 @@ export default function Conversion() {
 					<LoadingScreen
 						fileName={firstFile?.name || "file"}
 						fileSize={firstFile?.size}
-						fromFormat={fromOption?.[0].name}
-						toFormat={toOption?.[0].name}
-						fromExtension={fromOption?.[0].extension}
-						toExtension={toOption?.[0].extension}
+						from={fromOption?.[0]}
+						to={toOption?.[0]}
 					/>
 				) : (
 					<FormatExplorer

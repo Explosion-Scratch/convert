@@ -4,6 +4,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import preact from "@preact/preset-vite"
 
 export default defineConfig({
+  publicDir: "public",
   optimizeDeps: {
     exclude: [
       "@ffmpeg/ffmpeg",

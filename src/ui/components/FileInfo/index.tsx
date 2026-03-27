@@ -7,6 +7,7 @@ interface FileInfoBadgeProps {
 	fileSize?: number;
 	extension?: string;
 	mimeType?: string;
+	category?: string | string[];
 	onRemove?: () => void;
 	className?: string;
 }
@@ -23,6 +24,7 @@ export default function FileInfoBadge({
 	fileSize,
 	extension,
 	mimeType,
+	category,
 	onRemove,
 	className = ""
 }: FileInfoBadgeProps) {
@@ -30,7 +32,7 @@ export default function FileInfoBadge({
 
 	return (
 		<div className={`file-info-badge ${className}`}>
-			<FileIcon extension={ext} mimeType={mimeType} size={16} />
+			<FileIcon extension={ext} mimeType={mimeType} category={category} size={16} />
 			<div className="file-info-text">
 				<span className="file-info-name">{fileName}</span>
 				{typeof fileSize === "number" && (

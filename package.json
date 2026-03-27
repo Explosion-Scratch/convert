@@ -8,6 +8,7 @@
   "type": "module",
   "main": "src/electron.cjs",
   "scripts": {
+    "postinstall": "bun run scripts/extract-material-icons.ts",
     "dev": "vite",
     "build": "tsc && vite build",
     "cache:build": "bun run buildCache.js dist/cache.json --minify",

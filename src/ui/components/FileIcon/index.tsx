@@ -1,84 +1,114 @@
-import {
-	FileText, FileImage, FileAudio, FileVideo, FileArchive, FileCode,
-	FileSpreadsheet, FileType, File, FileJson
-} from "lucide-preact";
+import { useEffect, useState } from "preact/hooks";
+import { getDefaultIconForCategory } from "./categoryDefaultIcons";
 import "./index.css";
 
 interface FileIconProps {
 	extension?: string;
 	mimeType?: string;
+	category?: string | string[];
 	size?: number;
 	className?: string;
 }
 
-const ICON_MAP: Record<string, typeof File> = {
-	png: FileImage, jpg: FileImage, jpeg: FileImage, gif: FileImage,
-	bmp: FileImage, webp: FileImage, tiff: FileImage, ico: FileImage,
-	svg: FileImage, avif: FileImage, qoi: FileImage,
+let mapCache: Record<string, string> | null = null;
+let loadPromise: Promise<Record<string, string>> | null = null;
 
-	mp3: FileAudio, wav: FileAudio, ogg: FileAudio, flac: FileAudio,
-	aac: FileAudio, wma: FileAudio, m4a: FileAudio, mid: FileAudio,
-	midi: FileAudio,
-
-	mp4: FileVideo, avi: FileVideo, mkv: FileVideo, mov: FileVideo,
-	wmv: FileVideo, webm: FileVideo, flv: FileVideo,
-
-	zip: FileArchive, tar: FileArchive, gz: FileArchive, "7z": FileArchive,
-	rar: FileArchive, bz2: FileArchive, xz: FileArchive, zst: FileArchive,
-
-	pdf: FileText, doc: FileText, docx: FileText, rtf: FileText,
-	odt: FileText, epub: FileText, typ: FileText,
-
-	xls: FileSpreadsheet, xlsx: FileSpreadsheet, csv: FileSpreadsheet,
-	ods: FileSpreadsheet,
-
-	pptx: FileText, ppt: FileText,
-
-	ttf: FileType, otf: FileType, woff: FileType, woff2: FileType,
-
-	json: FileJson, json5: FileJson,
-	js: FileCode, ts: FileCode, py: FileCode, c: FileCode,
-	cpp: FileCode, rs: FileCode, html: FileCode, css: FileCode,
-	sh: FileCode, bat: FileCode, exe: FileCode,
-
-	txt: FileText, md: FileText, markdown: FileText,
-	xml: FileCode, yaml: FileCode, yml: FileCode, toml: FileCode,
-	ini: FileCode,
-};
-
-const MIME_PREFIX_MAP: Record<string, typeof File> = {
-	"image/": FileImage,
-	"audio/": FileAudio,
-	"video/": FileVideo,
-	"font/": FileType,
-	"text/": FileText,
-};
-
-function getIconComponent(extension?: string, mimeType?: string): typeof File {
-	if (extension) {
-		const ext = extension.toLowerCase().replace(/^\./, "");
-		if (ICON_MAP[ext]) return ICON_MAP[ext];
+function loadExtensionMap(): Promise<Record<string, string>> {
+	if (mapCache) return Promise.resolve(mapCache);
+	if (!loadPromise) {
+		loadPromise = fetch(
+			`${import.meta.env.BASE_URL}material-file-icons/extension-map.json`,
+		)
+			.then((r) => {
+				if (!r.ok) throw new Error("extension-map load failed");
+				return r.json() as Promise<Record<string, string>>;
+			})
+			.then((m) => {
+				mapCache = m;
+				return m;
+			});
 	}
-
-	if (mimeType) {
-		for (const [prefix, icon] of Object.entries(MIME_PREFIX_MAP)) {
-			if (mimeType.startsWith(prefix)) return icon;
-		}
-		if (mimeType.includes("zip") || mimeType.includes("archive") || mimeType.includes("compressed")) {
-			return FileArchive;
-		}
-		if (mimeType.includes("json")) return FileJson;
-	}
-
-	return File;
+	return loadPromise;
 }
 
-export default function FileIcon({ extension, mimeType, size = 20, className = "" }: FileIconProps) {
-	const IconComponent = getIconComponent(extension, mimeType);
+function normalizeExt(extension?: string): string | undefined {
+	if (!extension) return undefined;
+	return extension.toLowerCase().replace(/^\./, "");
+}
+
+function lookupLogical(
+	ext: string | undefined,
+	map: Record<string, string> | null,
+): string {
+	if (!ext || !map) return "file";
+	const e = normalizeExt(ext) ?? "";
+	if (map[e]) return map[e];
+	let cur = e;
+	while (cur.includes(".")) {
+		if (map[cur]) return map[cur];
+		cur = cur.slice(cur.indexOf(".") + 1);
+	}
+	return map[cur] ?? "file";
+}
+
+function mimeFallbackLogical(mimeType?: string): string {
+	if (!mimeType) return "file";
+	if (mimeType.startsWith("image/")) return "image";
+	if (mimeType.startsWith("audio/")) return "audio";
+	if (mimeType.startsWith("video/")) return "video";
+	if (mimeType.startsWith("font/")) return "font";
+	if (mimeType.startsWith("text/")) return "document";
+	if (
+		mimeType.includes("zip") ||
+		mimeType.includes("archive") ||
+		mimeType.includes("compressed")
+	) {
+		return "zip";
+	}
+	if (mimeType.includes("json")) return "json";
+	return "file";
+}
+
+function resolveLogical(
+	extension: string | undefined,
+	mimeType: string | undefined,
+	map: Record<string, string> | null,
+	category: string | string[] | undefined,
+): string {
+	let logical: string;
+	if (extension !== undefined && extension !== "") {
+		logical = lookupLogical(extension, map);
+	} else {
+		logical = mimeFallbackLogical(mimeType);
+	}
+	if (logical !== "file") return logical;
+	return getDefaultIconForCategory(category);
+}
+
+/** Renders a Material Icon Theme file icon from extension or MIME type. */
+export default function FileIcon({
+	extension,
+	mimeType,
+	category,
+	size = 20,
+	className = "",
+}: FileIconProps) {
+	const [map, setMap] = useState<Record<string, string> | null>(mapCache);
+
+	useEffect(() => {
+		loadExtensionMap().then(setMap);
+	}, []);
+
+	const logical = resolveLogical(extension, mimeType, map, category);
+
+	const src = `${import.meta.env.BASE_URL}material-file-icons/icons/${logical}.svg`;
 
 	return (
-		<div className={`file-icon ${className}`}>
-			<IconComponent size={size} />
+		<div
+			className={`file-icon ${className}`}
+			style={{ width: size, height: size }}
+		>
+			<img src={src} alt="" width={size} height={size} decoding="async" />
 		</div>
 	);
 }

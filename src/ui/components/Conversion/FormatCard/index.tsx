@@ -29,7 +29,12 @@ export default function FormatCard({ conversionOption, id, selected, onSelect, a
 			onClick={() => onSelect(id)}
 		>
 			<div className="format-card-row">
-				<FileIcon extension={format.extension} mimeType={format.mime} size={22} />
+				<FileIcon
+					extension={format.extension}
+					mimeType={format.mime}
+					category={format.category}
+					size={22}
+				/>
 				<div className="format-card-text">
 					<span className="format-card-ext">.{format.extension.toUpperCase()}</span>
 					<span className="format-card-name">{cleanName}</span>

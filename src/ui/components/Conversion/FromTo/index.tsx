@@ -40,7 +40,12 @@ function ExtPill({
 				<span className="fromto-count">{label}</span>
 			) : (
 				<>
-					<FileIcon extension={option?.[0].extension} mimeType={mime} size={22} />
+					<FileIcon
+						extension={option?.[0].extension}
+						mimeType={mime}
+						category={option?.[0].category}
+						size={22}
+					/>
 					<span className="fromto-ext">.{ext}</span>
 				</>
 			)}
