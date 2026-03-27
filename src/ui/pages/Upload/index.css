@@ -1,8 +1,29 @@
 .upload-page {
+	--upload-pattern-s: 41px;
+	--upload-pattern-g: color-mix(in srgb, var(--primary) 10%, transparent) 35%,
+		transparent 36%;
 	display: flex;
 	flex-direction: column;
 	min-height: 100vh;
 	align-items: stretch;
+	background-color: var(--bg-page);
+	background-image: radial-gradient(at 100% 100%, var(--upload-pattern-g)),
+		radial-gradient(at 0 0, var(--upload-pattern-g));
+	background-size: var(--upload-pattern-s) var(--upload-pattern-s);
+	background-repeat: repeat;
+	animation: upload-pattern-drift 5s linear infinite;
+}
+
+@keyframes upload-pattern-drift {
+	from {
+		background-position: 0 0, 0 0;
+	}
+
+	to {
+		background-position: calc(-1 * var(--upload-pattern-s))
+				calc(-1 * var(--upload-pattern-s)),
+			calc(-1 * var(--upload-pattern-s)) calc(-1 * var(--upload-pattern-s));
+	}
 }
 
 .upload-card {
@@ -76,6 +97,11 @@
 			color: var(--text-muted);
 			font-size: 0.8rem;
 			margin-top: 0.35rem;
+		}
+
+		&.upload-dropzone--pending {
+			cursor: wait;
+			opacity: 0.72;
 		}
 	}
 

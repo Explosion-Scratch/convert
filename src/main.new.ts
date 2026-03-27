@@ -162,18 +162,25 @@ function downloadFile(bytes: Uint8Array, name: string, mime: string) {
 	link.click();
 }
 
-try {
-	const cacheJSON = await fetch("cache.json")
-		.then(r => r.json());
-	window.supportedFormatCache = new Map(cacheJSON);
-} catch (error) {
-	console.warn(
-		"Missing supported format precache.\n\n" +
-		"Consider saving the output of printSupportedFormatCache() to cache.json."
-	);
-} finally {
-	await buildOptionList();
-	console.log("Built initial format list.");
+async function initSupportedFormats() {
+	try {
+		try {
+			const cacheJSON = await fetch("cache.json").then(r => r.json());
+			window.supportedFormatCache = new Map(cacheJSON);
+		} catch {
+			console.warn(
+				"Missing supported format precache.\n\n" +
+				"Consider saving the output of printSupportedFormatCache() to cache.json."
+			);
+		}
+		await buildOptionList();
+		console.log("Built initial format list.");
+	} catch (e) {
+		console.error(e);
+		LoadingToolsText.value = "Could not load formats.";
+	}
 }
+
+void initSupportedFormats();
 
 console.debug(ConversionOptions);

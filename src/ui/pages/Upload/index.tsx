@@ -1,5 +1,5 @@
 import { useRef, useState } from "preact/hooks";
-import { CurrentPage, Pages } from "src/ui/AppState";
+import { CurrentPage, LoadingToolsText, Pages } from "src/ui/AppState";
 import { SelectedFiles } from "src/main.new";
 import { Upload } from "lucide-preact";
 
@@ -16,11 +16,15 @@ export default function UploadPage() {
 
 	const handleClick = (ev: MouseEvent) => {
 		ev.preventDefault();
+		if (!formatsReady) return;
 		fileRef.current?.click();
 	};
 
+	const formatsReady = LoadingToolsText.value === undefined;
+
 	const processFiles = (fileList: FileList | null | undefined) => {
 		if (!fileList || fileList.length === 0) return;
+		if (!formatsReady) return;
 
 		for (const file of fileList) {
 			SelectedFiles.value = {
@@ -35,11 +39,13 @@ export default function UploadPage() {
 		ev.preventDefault();
 		setIsDragging(false);
 		dragCounter.current = 0;
+		if (!formatsReady) return;
 		processFiles(ev.dataTransfer?.files);
 	};
 
 	const handleDragEnter = (ev: DragEvent) => {
 		ev.preventDefault();
+		if (!formatsReady) return;
 		dragCounter.current++;
 		if (ev.dataTransfer?.types.includes("Files")) setIsDragging(true);
 	};
@@ -66,7 +72,7 @@ export default function UploadPage() {
 				</div>
 
 				<div
-					className={`upload-dropzone ${isDragging ? "active-drag" : ""}`}
+					className={`upload-dropzone ${isDragging ? "active-drag" : ""} ${!formatsReady ? "upload-dropzone--pending" : ""}`}
 					onClick={handleClick}
 					onDrop={handleDrop}
 					onDragOver={handleDragOver}
@@ -77,6 +83,7 @@ export default function UploadPage() {
 					onKeyDown={(e) => {
 						if (e.key === "Enter" || e.key === " ") {
 							e.preventDefault();
+							if (!formatsReady) return;
 							fileRef.current?.click();
 						}
 					}}
@@ -89,6 +96,7 @@ export default function UploadPage() {
 						onClick={(ev) => ev.stopPropagation()}
 						tabIndex={0}
 						multiple
+						disabled={!formatsReady}
 						onChange={handleChange}
 					/>
 					<div className="upload-icon-wrap">
@@ -103,7 +111,7 @@ export default function UploadPage() {
 				</div>
 			</div>
 
-			<Footer />
+			<Footer loadingText={LoadingToolsText.value} />
 		</div>
 	);
 }

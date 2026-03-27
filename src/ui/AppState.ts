@@ -16,4 +16,4 @@ export const PopupData = signal<PopupDataContainer>({
 	buttonText: "Ignore"
 });
 
-export const LoadingToolsText = signal<string | undefined>("Loading conversion tools...");
+export const LoadingToolsText = signal<string | undefined>("Loading formats…");
