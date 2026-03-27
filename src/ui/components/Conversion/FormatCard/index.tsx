@@ -1,55 +1,45 @@
 import type { ConversionOption } from "src/main.new";
-import { Mode, ModeEnum } from "src/ui/ModeStore";
-import { Icon } from "src/ui/components/Icon";
-import faImageRegularFull from "src/ui/img/fa-image-regular-full.svg";
-
+import FileIcon from "src/ui/components/FileIcon";
 import "./index.css";
 
 interface FormatCardProps {
-    conversionOption: ConversionOption
-    id: string
-    selected: boolean
-    onSelect: (id: string) => void
+	conversionOption: ConversionOption;
+	id: string;
+	selected: boolean;
+	onSelect: (id: string) => void;
+	advanced?: boolean;
 }
 
-export default function FormatCard({ conversionOption, id, selected, onSelect }: FormatCardProps) {
+export default function FormatCard({ conversionOption, id, selected, onSelect, advanced = false }: FormatCardProps) {
+	const [format, handler] = conversionOption;
 
-    return (
-        <button className={ `format-card ${selected ? "active" : ""}` } onClick={ () => onSelect(id) }>
-            {/* Mobile Card Layout */ }
-            <div className="card-mobile-header mobile-only">
-                <div className="card-title-group">
-                    <span className={ selected ? "badge" : "badge gray" }>
-                        { conversionOption[0].extension }
-                    </span>
-                    <h3>{ conversionOption[0].name }</h3>
-                    <p className="mime-type">({ conversionOption[0].mime })</p>
-                </div>
-                <div className="card-icon-sm">
-                    <Icon src={ faImageRegularFull } size={ 16 } />
-                </div>
-            </div>
+	const cleanName = advanced
+		? format.name
+		: format.name
+			.split("(").join(")").split(")")
+			.filter((_, i) => i % 2 === 0)
+			.filter(c => c !== "")
+			.join(" ")
+			.trim();
 
-            {/* Desktop Card Layout */ }
-            <div className="card-desktop-content desktop-only">
-                <div className="card-top">
-                    <div className="card-icon-lg">
-                        <Icon src={ faImageRegularFull } size={ 32 } />
-                    </div>
-                    <span className="badge">
-                        { conversionOption[0].extension }
-                    </span>
-                    {
-                        (
-                            Mode.value === ModeEnum.Advanced) && (<span className="badge gray">
-                                { conversionOption[1].name }
-                            </span>
-                        )
-                    }
-                </div>
-                <h3>{ conversionOption[0].name }</h3>
-                <p className="mime-type">({ conversionOption[0].mime })</p>
-            </div>
-        </button>
-    );
+	return (
+		<button
+			className={`format-card ${selected ? "active" : ""}`}
+			onClick={() => onSelect(id)}
+		>
+			<div className="format-card-row">
+				<FileIcon extension={format.extension} mimeType={format.mime} size={22} />
+				<div className="format-card-text">
+					<span className="format-card-ext">.{format.extension.toUpperCase()}</span>
+					<span className="format-card-name">{cleanName}</span>
+				</div>
+			</div>
+			{advanced && (
+				<div className="format-card-meta">
+					<span className="format-card-mime">{format.mime}</span>
+					<span className="format-card-plugin">{handler.name}</span>
+				</div>
+			)}
+		</button>
+	);
 }

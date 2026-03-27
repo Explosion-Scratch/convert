@@ -1,39 +1,65 @@
 import { PopupData } from "src/ui"
 import { popupOpen } from "src/ui/PopupStore"
-import StyledButton, { ButtonVariant } from "src/ui/components/StyledButton"
+import { HelpCircle } from "lucide-preact"
+import tippy from "tippy.js"
+import { useEffect, useRef } from "preact/hooks"
 
 export default function HelpButton() {
-	const onHelpClick = (ev: preact.TargetedMouseEvent<HTMLButtonElement>) => {
+	const btnRef = useRef<HTMLButtonElement>(null);
+
+	useEffect(() => {
+		if (!btnRef.current) return;
+		const instance = tippy(btnRef.current, {
+			content: "Help & Info",
+			placement: "bottom",
+			delay: [300, 0],
+		});
+		return () => instance.destroy();
+	}, []);
+
+	const onHelpClick = () => {
 		PopupData.value = {
 			dismissible: true,
-			buttonText: "OK"
+			buttonText: "Got it"
 		}
 		PopupData.value.contents = (
-			<>
-				<h1>Help</h1>
-				<p><b>Truly universal online file converter.</b></p>
-				<p>Many online file conversion tools are <b>boring</b> and <b>insecure</b>. They only allow conversion between two formats in the same medium (images to images, videos to videos, etc.), and they require that you <i>upload your files to some server</i>.</p>
-				<p>This is not just terrible for privacy, it's also incredibly lame. What if you <i>really</i> need to convert an AVI video to a PDF document? Try to find an online tool for that, I dare you.</p>
-				<p>Convert.to.it aims to be a tool that "just works". You're almost <i>guaranteed</i> to get an output - perhaps not always the one you expected, but it'll try its best to not leave you hanging.</p>
-				<h2>Usage</h2>
-				<ol>
-					<li>Upload your file using the file browser, or drag and drop your file.</li>
-					<li>Select an output format.</li>
-					<li>Click <b>Convert!</b></li>
-					<li>Hopefully, after a bit (or a lot) of thinking, the program will spit out the file you wanted.</li>
-				</ol>
-				<h2>Advanced mode</h2>
-				<p>Advanced mode exposes additional conversion methods for some file types. If you do not intend on using a specific conversion method, it's better to leave it in Simple mode.</p>
-			</>
+			<div className="help-content">
+				<h1>Convert to it!</h1>
+				<p className="help-subtitle">Truly universal on-device file converter.</p>
+
+				<div className="help-section">
+					<h2>Why use this?</h2>
+					<p>Most online converters require uploading your files to a server — that's terrible for privacy. This app runs entirely in your browser. Your files never leave your device.</p>
+					<p>It also converts across mediums. Video to PDF? Audio to image? If there's a path, it'll find it.</p>
+				</div>
+
+				<div className="help-section">
+					<h2>How to use</h2>
+					<ol>
+						<li>Upload your file by clicking or dragging it in.</li>
+						<li>Confirm the input format (auto-detected).</li>
+						<li>Choose your desired output format.</li>
+						<li>Click <strong>Convert</strong> and wait for the result.</li>
+					</ol>
+				</div>
+
+				<div className="help-section">
+					<h2>Advanced mode</h2>
+					<p>Advanced mode reveals additional conversion methods and plugin details for each format. Use it when you need fine-grained control over which tool handles the conversion.</p>
+				</div>
+			</div>
 		)
 		popupOpen.value = true
 	}
 
 	return (
-		<StyledButton
-			variant={ ButtonVariant.Default }
-			onClick={ onHelpClick }
-			tabIndex={ 2 }
-		>Help</StyledButton>
+		<button
+			ref={btnRef}
+			className="styled-button"
+			onClick={onHelpClick}
+		>
+			<HelpCircle size={16} />
+			{" Help"}
+		</button>
 	)
 }

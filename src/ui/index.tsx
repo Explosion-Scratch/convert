@@ -4,7 +4,7 @@ import { signal } from "@preact/signals";
 import UploadPage from "./pages/Upload";
 import ConversionPage from "./pages/Conversion";
 import { initTheme } from "./ThemeStore";
-import { openPopup, type PopupDataContainer } from "./PopupStore";
+import { type PopupDataContainer } from "./PopupStore";
 import Popup from "./components/Popup";
 import { initMode } from "./ModeStore";
 
@@ -16,34 +16,26 @@ export const enum Pages {
 }
 
 export const CurrentPage = signal<Pages>(Pages.Upload);
-export let PopupData = signal<PopupDataContainer>({
+export const PopupData = signal<PopupDataContainer>({
 	title: "Loading tools...",
 	text: "Please wait while the app loads conversion tools.",
 	dismissible: false,
-	buttonText: 'Ignore'
-})
+	buttonText: "Ignore"
+});
+
+export const LoadingToolsText = signal<string | undefined>("Loading conversion tools...");
 
 function App() {
 	return (
 		<>
-			{ CurrentPage.value === Pages.Conversion && <ConversionPage /> }
-			{ CurrentPage.value === Pages.Upload && <UploadPage /> }
+			{CurrentPage.value === Pages.Conversion && <ConversionPage />}
+			{CurrentPage.value === Pages.Upload && <UploadPage />}
 			<Popup />
 		</>
-	)
-}
-
-/**
- * Debug function to change pages without user workflow
-*/
-// @ts-expect-error
-window.changePage = (page: Pages) => {
-	CurrentPage.value = page
+	);
 }
 
 render(<App />, document.body);
-
-openPopup();
 
 initTheme();
 initMode();

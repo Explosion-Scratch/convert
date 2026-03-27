@@ -1,27 +1,25 @@
-import githubImg from 'src/ui/img/fa-github-brands-solid-full.svg'
-import discordImg from 'src/ui/img/fa-discord-brands-solid-full.svg'
+import { ExternalLink } from "lucide-preact";
+import "./index.css";
 
-import 'src/ui/components/Footer'
-import './index.css'
-
-interface FooterComponentProps {
-	visible?: boolean
+interface FooterProps {
+	loadingText?: string;
 }
 
-export default function Footer({ visible = true }: FooterComponentProps) {
+export default function Footer({ loadingText }: FooterProps) {
 	return (
-		<footer aria-hidden={ !visible }>
-			<div class="footer-item footer-copyright">
-				<span class="footer-link-text">&copy; 2026, p2r3</span>
+		<footer>
+			<div className="footer-item footer-copyright">
+				<span className="footer-link-text">&copy; 2026, p2r3</span>
 			</div>
-			<a href="https://github.com/p2r3/convert" target="_blank" class="footer-item">
-				<img class="footer-link-img" src={ githubImg } alt="Source" />
-				<span class="footer-link-text">Source</span>
-			</a>
-			<a href="https://p2r3.com/discord" target="_blank" class="footer-item">
-				<img class="footer-link-img" src={ discordImg } alt="Discord" />
-				<span class="footer-link-text">Discord</span>
+			{loadingText && (
+				<div className="footer-item footer-loading">
+					<span className="footer-link-text">{loadingText}</span>
+				</div>
+			)}
+			<a href="https://github.com/p2r3/convert" target="_blank" className="footer-item" rel="noopener">
+				<ExternalLink size={12} />
+				<span className="footer-link-text">Source</span>
 			</a>
 		</footer>
-	)
+	);
 }

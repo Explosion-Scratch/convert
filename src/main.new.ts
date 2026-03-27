@@ -1,30 +1,19 @@
 import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
-import normalizeMimeType from "./normalizeMimeType.js";
 import handlers from "./handlers";
 import { TraversionGraph } from "./TraversionGraph.js";
-import { PopupData } from "./ui/index.js";
-import { closePopup, openPopup } from "./ui/PopupStore.js";
+import { LoadingToolsText, PopupData } from "./ui/index.js";
 import { signal } from "@preact/signals";
 import { Mode, ModeEnum } from "./ui/ModeStore.js";
 
-/** KV pairs of files */
-type FileRecord = Record<`${string}-${string}`, File>
+type FileRecord = Record<`${string}-${string}`, File>;
 
-/** Map of available formats and its handler */
 export type ConversionOptionsMap = Map<FileFormat, FormatHandler>;
-/** A single conversion option, derived from `ConversionOptionsMap` */
 export type ConversionOption = ConversionOptionsMap extends Map<infer K, infer V> ? [K, V] : never;
 
 export const ConversionOptions: ConversionOptionsMap = new Map();
 
-/**
- * Files currently selected for conversion
- */
 export const SelectedFiles = signal<FileRecord>({});
 
-/**
- * Handlers that support conversion from any formats
- */
 export const ConversionsFromAnyInput: ConvertPathNode[] =
 	handlers
 		.filter(h => h.supportAnyInput && h.supportedFormats)
@@ -40,7 +29,7 @@ window.printSupportedFormatCache = () => {
 	for (const entry of window.supportedFormatCache)
 		entries.push(entry);
 	return JSON.stringify(entries, null, 2);
-}
+};
 
 async function buildOptionList() {
 	ConversionOptions.clear();
@@ -51,7 +40,7 @@ async function buildOptionList() {
 
 			try {
 				await handler.init();
-			} catch (_) { continue }
+			} catch (_) { continue; }
 
 			if (handler.supportedFormats) {
 				window.supportedFormatCache.set(handler.name, handler.supportedFormats);
@@ -63,7 +52,7 @@ async function buildOptionList() {
 
 		if (!supportedFormats) {
 			console.warn(`Handler "${handler.name}" doesn't support any formats`);
-			continue
+			continue;
 		}
 
 		for (const format of supportedFormats) {
@@ -72,15 +61,34 @@ async function buildOptionList() {
 		}
 	}
 
-	closePopup();
+	window.traversionGraph.init(window.supportedFormatCache, handlers);
+	LoadingToolsText.value = undefined;
 }
 
+let deadEndAttempts: ConvertPathNode[][];
+
 async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
+	const pathString = path.map(c => c.format.format).join(" → ");
+
+	for (const deadEnd of deadEndAttempts) {
+		let isDeadEnd = true;
+		for (let i = 0; i < deadEnd.length; i++) {
+			if (path[i] === deadEnd[i]) continue;
+			isDeadEnd = false;
+			break;
+		}
+		if (isDeadEnd) {
+			const deadEndString = deadEnd.slice(-2).map(c => c.format.format).join(" → ");
+			console.warn(`Skipping ${pathString} due to dead end near ${deadEndString}.`);
+			return null;
+		}
+	}
+
 	PopupData.value = {
 		title: "Finding conversion route...",
-		text: `Trying ${path.map(c => c.format.format).join(" → ")}`
-	}
-	openPopup();
+		text: `Trying ${pathString}`,
+		dismissible: false,
+	};
 
 	for (let i = 0; i < path.length - 1; i++) {
 		const handler = path[i + 1].handler;
@@ -89,10 +97,8 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
 			let supportedFormats = window.supportedFormatCache.get(handler.name);
 
 			if (!handler.ready) {
-				try {
-					await handler.init();
-				} catch (_) { return null; }
-
+				await handler.init();
+				if (!handler.ready) throw `Handler "${handler.name}" not ready after init.`;
 				if (handler.supportedFormats) {
 					window.supportedFormatCache.set(handler.name, handler.supportedFormats);
 					supportedFormats = handler.supportedFormats;
@@ -101,25 +107,34 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[]) {
 
 			if (!supportedFormats) throw `Handler "${handler.name}" doesn't support any formats.`;
 
-			const inputFormat = supportedFormats.find(c => c.mime === path[i].format.mime && c.from)!;
+			const inputFormat = supportedFormats.find(c =>
+				c.from
+				&& c.mime === path[i].format.mime
+				&& c.format === path[i].format.format
+			) || (handler.supportAnyInput ? path[i].format : undefined);
 
-			files = (
-				await Promise.all([
-					handler.doConvert(files, inputFormat, path[i + 1].format),
-					// Ensure that we wait long enough for the UI to update
-					new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-				])
-			)[0];
+			if (!inputFormat) throw `Handler "${handler.name}" doesn't support the "${path[i].format.format}" format.`;
+
+			files = (await Promise.all([
+				handler.doConvert(files, inputFormat, path[i + 1].format),
+				new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+			]))[0];
 
 			if (files.some(c => !c.bytes.length)) throw "Output is empty.";
 		} catch (e) {
 			console.log(path.map(c => c.format.format));
 			console.error(handler.name, `${path[i].format.format} → ${path[i + 1].format.format}`, e);
 
+			const deadEndPath = path.slice(0, i + 2);
+			deadEndAttempts.push(deadEndPath);
+			window.traversionGraph.addDeadEndPath(path.slice(0, i + 2));
+
 			await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 			return null;
 		}
 	}
+
+	return { files, path };
 }
 
 window.tryConvertByTraversing = async function (
@@ -127,8 +142,9 @@ window.tryConvertByTraversing = async function (
 	from: ConvertPathNode,
 	to: ConvertPathNode
 ) {
+	deadEndAttempts = [];
+	window.traversionGraph.clearDeadEndPaths();
 	for await (const path of window.traversionGraph.searchPath(from, to, Mode.value === ModeEnum.Simple)) {
-		// Use exact output format if the target handler supports it
 		if (path.at(-1)?.handler === to.handler) {
 			path[path.length - 1] = to;
 		}
@@ -136,7 +152,7 @@ window.tryConvertByTraversing = async function (
 		if (attempt) return attempt;
 	}
 	return null;
-}
+};
 
 function downloadFile(bytes: Uint8Array, name: string, mime: string) {
 	const blob = new Blob([bytes as BlobPart], { type: mime });

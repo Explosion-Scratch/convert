@@ -1,89 +1,79 @@
 .format-card {
-    appearance: none;
-    background: var(--bg-card);
-    border: 1px solid var(--border-primary);
-    border-radius: 12px;
-    padding: 1rem;
+	appearance: none;
+	background: var(--bg-card);
+	border: 1.5px solid var(--border-primary);
+	border-radius: 10px;
+	padding: 0.65rem 0.75rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	text-align: left;
+	font: inherit;
+	cursor: pointer;
+	transition: border-color 120ms, box-shadow 120ms;
 
-    display: block;
-    text-align: left;
-    font: inherit;
+	&:hover {
+		border-color: var(--primary);
+	}
 
-    /* This ruins repaint metrics, especially with a lot of cards */
-    /* transition: all 0.2s; */
+	&.active {
+		border-color: var(--primary);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+	}
 
-    .icon {
-        background-color: var(--text-muted);
-    }
+	.format-card-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
 
-    &:hover {
-        border-color: var(--primary);
-        /* box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); */
-    }
+	.format-card-text {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
 
-    &.active {
-        outline: 4px solid var(--primary);
-        /* box-shadow: 0 4px 12px rgba(28, 119, 255, 0.1); */
+	.format-card-ext {
+		font-size: 0.85rem;
+		font-weight: 800;
+		color: var(--text-primary);
+		line-height: 1.2;
+		letter-spacing: 0.02em;
+	}
 
-        .icon {
-            background-color: var(--primary);
-        }
-    }
+	.format-card-name {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+		line-height: 1.3;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 180px;
+	}
 
-    .card-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 1rem;
-    }
+	.format-card-meta {
+		display: flex;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+		padding-top: 0.15rem;
+	}
 
-    .card-icon-lg {
-        width: 40px;
-        height: 40px;
-        background: var(--bg-card-alt);
-        color: var(--primary);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 8px;
-        font-size: 1.2rem;
-    }
+	.format-card-mime,
+	.format-card-plugin {
+		font-size: 0.6rem;
+		padding: 1px 5px;
+		border-radius: 3px;
+		line-height: 1.4;
+	}
 
-    .badge {
-        background: var(--primary);
-        color: var(--text-on-primary);
-        font-size: 0.7rem;
-        font-weight: 800;
-        padding: 2px 6px;
-        border-radius: 4px;
+	.format-card-mime {
+		background: var(--bg-section);
+		color: var(--text-tertiary);
+	}
 
-        &.gray {
-            background: #e5e7eb;
-            color: #4b5563;
-        }
-    }
-
-    .card-mobile-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .card-title-group {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    h3 {
-        font-size: 0.95rem;
-        color: var(--text-primary);
-        font-weight: 700;
-    }
-
-    .mime-type {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        margin-top: 4px;
-    }
+	.format-card-plugin {
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
+		color: var(--primary);
+		font-weight: 600;
+	}
 }
