@@ -1,6 +1,6 @@
 import { useRef, useState } from "preact/hooks";
 import { CurrentPage, LoadingToolsText, Pages } from "src/ui/AppState";
-import { SelectedFiles } from "src/main.new";
+import { goToUploadHome, SelectedFiles } from "src/main.new";
 import { Upload } from "lucide-preact";
 
 import Logo from "src/ui/components/Logo";
@@ -64,11 +64,16 @@ export default function UploadPage() {
 		processFiles(fileRef.current?.files);
 	};
 
+	const handleLogoClick = () => {
+		goToUploadHome();
+		if (fileRef.current) fileRef.current.value = "";
+	};
+
 	return (
 		<div className="upload-page">
 			<div className="upload-card">
 				<div className="upload-card-header">
-					<Logo showName={true} size={36} />
+					<Logo showName={true} size={36} onClick={handleLogoClick} />
 				</div>
 
 				<div

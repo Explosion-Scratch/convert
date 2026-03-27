@@ -223,7 +223,7 @@ export default function Conversion() {
 
 	return (
 		<div className="conversion-body">
-			<ConversionHeader />
+			<ConversionHeader logoDisabled={step === "converting"} />
 
 			<main className="conversion-main">
 				{step === "converting" ? (

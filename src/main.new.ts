@@ -1,7 +1,7 @@
 import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
 import handlers from "./handlers";
 import { TraversionGraph } from "./TraversionGraph.js";
-import { LoadingToolsText, PopupData } from "./ui/AppState.js";
+import { CurrentPage, LoadingToolsText, Pages, PopupData } from "./ui/AppState.js";
 import { signal } from "@preact/signals";
 import { Mode, ModeEnum } from "./ui/ModeStore.js";
 
@@ -13,6 +13,11 @@ export type ConversionOption = ConversionOptionsMap extends Map<infer K, infer V
 export const ConversionOptions: ConversionOptionsMap = new Map();
 
 export const SelectedFiles = signal<FileRecord>({});
+
+export function goToUploadHome(): void {
+	CurrentPage.value = Pages.Upload;
+	SelectedFiles.value = {};
+}
 
 export const ConversionsFromAnyInput: ConvertPathNode[] =
 	handlers
