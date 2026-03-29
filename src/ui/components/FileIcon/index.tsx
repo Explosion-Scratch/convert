@@ -75,10 +75,11 @@ function resolveLogical(
 	map: Record<string, string> | null,
 	category: string | string[] | undefined,
 ): string {
-	let logical: string;
+	let logical = "file";
 	if (extension !== undefined && extension !== "") {
 		logical = lookupLogical(extension, map);
-	} else {
+	}
+	if (logical === "file" && mimeType !== undefined && mimeType !== "") {
 		logical = mimeFallbackLogical(mimeType);
 	}
 	if (logical !== "file") return logical;

@@ -14,9 +14,10 @@ import Footer from "src/ui/components/Footer";
 import { ArrowLeft, ArrowRight } from "lucide-preact";
 import { PopupData } from "src/ui";
 import { closePopup, openPopup } from "src/ui/PopupStore";
-import StyledButton, { ButtonVariant } from "src/ui/components/StyledButton";
 import FileInfoBadge from "src/ui/components/FileInfo";
 import { CurrentPage, Pages } from "src/ui/AppState";
+import { ProgressStore } from "src/ui/ProgressStore";
+import StyledButton, { ButtonVariant } from "src/ui/components/StyledButton";
 
 type ConversionStep = "select-from" | "select-to" | "converting";
 
@@ -199,6 +200,8 @@ export default function Conversion() {
 
 		setIsConverting(true);
 		setStep("converting");
+		ProgressStore.reset();
+		const abortController = ProgressStore.controller;
 
 		try {
 			const inputFileData = [];
@@ -222,7 +225,7 @@ export default function Conversion() {
 			const fromNode = { handler: fromOption[1], format: fromOption[0] };
 			const toNode = { handler: toOption[1], format: toOption[0] };
 
-			const output = await window.tryConvertByTraversing(inputFileData, fromNode, toNode);
+			const output = await window.tryConvertByTraversing(inputFileData, fromNode, toNode, abortController.signal);
 
 			if (!output) {
 				setIsConverting(false);
@@ -250,13 +253,17 @@ export default function Conversion() {
 			openPopup();
 		} catch (e) {
 			console.error(e);
-			PopupData.value = {
-				title: "Conversion error",
-				text: `An unexpected error occurred: ${e}`,
-				dismissible: true,
-				buttonText: "OK",
-			};
-			openPopup();
+			if (e instanceof DOMException && e.name === "AbortError") {
+				// Don't show an error popup for manual cancellation
+			} else {
+				PopupData.value = {
+					title: "Conversion error",
+					text: `An unexpected error occurred: ${e}`,
+					dismissible: true,
+					buttonText: "OK",
+				};
+				openPopup();
+			}
 		} finally {
 			setIsConverting(false);
 			setStep("select-to");

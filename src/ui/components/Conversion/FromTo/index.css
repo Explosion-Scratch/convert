@@ -4,6 +4,8 @@
 	justify-content: center;
 	gap: 0.85rem;
 	padding: 0.15rem 0;
+	/* Properly balance out */
+	margin-bottom: .5rem;
 }
 
 .fromto-arrow {
