@@ -87,7 +87,6 @@ function generateSearchIndex(optionsMap: ConversionOptionsMap, advancedMode: boo
 
 		const dedupeKey = `${file.mime}|${file.format}`;
 		const id = formatExplorerRowKey(file, handler.name);
-
 		if (advancedMode) {
 			index.set(id, [file, handler]);
 		} else {
@@ -97,6 +96,7 @@ function generateSearchIndex(optionsMap: ConversionOptionsMap, advancedMode: boo
 			}
 		}
 	}
+
 	return index;
 }
 

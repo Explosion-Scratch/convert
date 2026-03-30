@@ -2,7 +2,7 @@ import './index.css';
 
 import { useState, useMemo, useCallback, useEffect } from "preact/hooks";
 import mime from "mime";
-import { Settings2 } from "lucide-preact";
+import { Settings2, ArrowLeft, ArrowRight } from "lucide-preact";
 import { ConversionOptions, SelectedFiles, type ConversionOption, type ConversionOptionsMap } from 'src/main.new';
 import { Mode, ModeEnum } from "src/ui/ModeStore";
 import normalizeMimeType from "src/normalizeMimeType";
@@ -14,20 +14,19 @@ import FormatExplorer from "src/ui/components/Conversion/FormatExplorer";
 import HandlerOptionsModal from "src/ui/components/Conversion/HandlerOptionsModal";
 import LoadingScreen from "src/ui/components/LoadingScreen";
 import Footer from "src/ui/components/Footer";
-import { ArrowLeft, ArrowRight } from "lucide-preact";
 import { PopupData } from "src/ui";
-import { closePopup, openPopup } from "src/ui/PopupStore";
+import { openPopup } from "src/ui/PopupStore";
 import FileInfoBadge from "src/ui/components/FileInfo";
 import { ConversionInProgress, CurrentPage, Pages } from "src/ui/AppState";
 import { ProgressStore } from "src/ui/ProgressStore";
 import StyledButton, { ButtonVariant } from "src/ui/components/StyledButton";
 
 type ConversionStep = "select-from" | "select-to" | "converting";
+type RouteConstraints = Parameters<typeof window.tryConvertByTraversing>[4];
 
 function countAvailableFormats(options: ConversionOptionsMap, direction: "from" | "to", advancedMode: boolean): number {
 	const seen = new Set<string>();
 	let count = 0;
-
 	for (const [format] of options) {
 		if (direction === "from" && !format.from) continue;
 		if (direction === "to" && !format.to) continue;
@@ -44,6 +43,15 @@ function countAvailableFormats(options: ConversionOptionsMap, direction: "from" 
 	}
 
 	return count;
+}
+
+function countUniqueFormats(options: ConversionOptionsMap): number {
+	const seen = new Set<string>();
+	for (const [format] of options) {
+		const dedupeKey = `${format.mime}|${format.format}`;
+		seen.add(dedupeKey);
+	}
+	return seen.size;
 }
 
 function getConversionOptions(): ConversionOptionsMap {
@@ -77,7 +85,7 @@ function getMimeCandidatesForFile(file: File): string[] {
 }
 
 function formatMatchesUploadedFile(format: FileFormat, ext: string, mimeCandidates: string[]): boolean {
-	if (mimeCandidates.some(m => m === format.mime)) return true;
+	if (mimeCandidates.includes(format.mime)) return true;
 	if (!ext) return false;
 	const e = ext.toLowerCase();
 	const fex = format.extension.toLowerCase();
@@ -123,27 +131,6 @@ function hasConfigurableOptions(handler: FormatHandler): boolean {
 	return (handler.getOptions?.().length ?? 0) > 0;
 }
 
-function listFormatHandlerCandidates(
-	allOptions: ConversionOptionsMap,
-	selected: ConversionOption,
-	direction: "from" | "to"
-): ConversionOption[] {
-	const [selectedFormat] = selected;
-	const seen = new Set<string>();
-	const out: ConversionOption[] = [];
-
-	for (const [format, handler] of allOptions) {
-		if (direction === "from" && !format.from) continue;
-		if (direction === "to" && !format.to) continue;
-		if (format.mime !== selectedFormat.mime || format.format !== selectedFormat.format) continue;
-		if (seen.has(handler.name)) continue;
-		seen.add(handler.name);
-		out.push([format, handler]);
-	}
-
-	return out;
-}
-
 export default function Conversion() {
 	const allOptions = getConversionOptions();
 	const files = Object.values(SelectedFiles.value);
@@ -159,11 +146,7 @@ export default function Conversion() {
 		if (!matchingFrom.size) return false;
 		const isSimple = Mode.value === ModeEnum.Simple;
 		if (!isSimple) return matchingFrom.size === 1;
-		const uniqueFormats = new Set<string>();
-		for (const [format] of matchingFrom) {
-			uniqueFormats.add(`${format.mime}|${format.format}`);
-		}
-		return uniqueFormats.size === 1;
+		return countUniqueFormats(matchingFrom) === 1;
 	}, [matchingFrom, Mode.value]);
 
 	const [step, setStep] = useState<ConversionStep>(() => {
@@ -185,36 +168,37 @@ export default function Conversion() {
 	const [outputFiles, setOutputFiles] = useState<Array<{ name: string; bytes: Uint8Array }>>([]);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [optionRenderNonce, setOptionRenderNonce] = useState(0);
+	const activeInputHandler = isAdvanced ? fromOption?.[1] ?? null : null;
+	const activeOutputHandler = isAdvanced ? toOption?.[1] ?? null : null;
 
-	const settingsScope: "input" | "output" = step === "select-from" ? "input" : "output";
-	const selectedSettingsOption = settingsScope === "input" ? fromOption : toOption;
-	const settingsDirection: "from" | "to" = settingsScope === "input" ? "from" : "to";
-
-	const settingsCandidates = useMemo(() => {
-		if (!selectedSettingsOption) return [];
-		if (isAdvanced) return [selectedSettingsOption];
-		return listFormatHandlerCandidates(allOptions, selectedSettingsOption, settingsDirection);
-	}, [selectedSettingsOption, isAdvanced, allOptions, settingsDirection]);
-
-	const settingsHandler = selectedSettingsOption?.[1] ?? null;
-
-	const activeSettingsOptions = useMemo(
-		() => settingsHandler?.getOptions?.() ?? [],
-		[settingsHandler, optionRenderNonce]
+	const inputSettingsOptions = useMemo(
+		() => activeInputHandler?.getOptions?.() ?? [],
+		[activeInputHandler, optionRenderNonce]
 	);
-
-	const activeSettingsValues = useMemo(() => {
-		if (!settingsHandler) return {};
-		return getOptionValues(settingsHandler);
-	}, [settingsHandler, optionRenderNonce]);
-
-	const visibleSettingsOptions = useMemo(
-		() => activeSettingsOptions.filter(option => shouldShowOption(option, activeSettingsValues)),
-		[activeSettingsOptions, activeSettingsValues]
+	const outputSettingsOptions = useMemo(
+		() => activeOutputHandler?.getOptions?.() ?? [],
+		[activeOutputHandler, optionRenderNonce]
 	);
-
-	const canSwitchPlugin = !isAdvanced && settingsCandidates.length > 1;
-	const hasConfigurableCandidate = settingsCandidates.some(([, handler]) => hasConfigurableOptions(handler));
+	const inputSettingsValues = useMemo(
+		() => activeInputHandler ? getOptionValues(activeInputHandler) : {},
+		[activeInputHandler, optionRenderNonce]
+	);
+	const outputSettingsValues = useMemo(
+		() => activeOutputHandler ? getOptionValues(activeOutputHandler) : {},
+		[activeOutputHandler, optionRenderNonce]
+	);
+	const inputVisibleOptions = useMemo(
+		() => inputSettingsOptions.filter(option => shouldShowOption(option, inputSettingsValues)),
+		[inputSettingsOptions, inputSettingsValues]
+	);
+	const outputVisibleOptions = useMemo(
+		() => outputSettingsOptions.filter(option => shouldShowOption(option, outputSettingsValues)),
+		[outputSettingsOptions, outputSettingsValues]
+	);
+	const canOpenSettings = isAdvanced && step === "select-to" && !!fromOption && !!toOption && (
+		(activeInputHandler ? hasConfigurableOptions(activeInputHandler) : false)
+		|| (activeOutputHandler ? hasConfigurableOptions(activeOutputHandler) : false)
+	);
 
 	useEffect(() => {
 		if (!firstFile || isConverting) return;
@@ -236,12 +220,6 @@ export default function Conversion() {
 			setSettingsOpen(false);
 		}
 	}, [step]);
-
-	useEffect(() => {
-		if (!selectedSettingsOption) {
-			setSettingsOpen(false);
-		}
-	}, [selectedSettingsOption]);
 
 	const handleFromSelect = useCallback((option: ConversionOption | null) => {
 		setFromOption(option);
@@ -285,7 +263,6 @@ export default function Conversion() {
 
 	const handleConvert = async () => {
 		if (!fromOption || !toOption || !firstFile) return;
-
 		setIsConverting(true);
 		setIsConversionDone(false);
 		setOutputFiles([]);
@@ -304,8 +281,34 @@ export default function Conversion() {
 
 			const fromNode = { handler: fromOption[1], format: fromOption[0] };
 			const toNode = { handler: toOption[1], format: toOption[0] };
+			const isSimpleMode = Mode.value === ModeEnum.Simple;
+			const constraints: RouteConstraints = isSimpleMode
+				? undefined
+				: {
+					forceInputHandler: true,
+					forceOutputHandler: true,
+					inputHandlerName: fromNode.handler.name,
+					outputHandlerName: toNode.handler.name,
+				};
 
-			const output = await window.tryConvertByTraversing(inputFileData, fromNode, toNode, abortController.signal);
+			if (
+				fromNode.format.mime === toNode.format.mime
+				&& fromNode.format.format === toNode.format.format
+				&& fromNode.handler.name === toNode.handler.name
+			) {
+				setOutputFiles(inputFileData);
+				setIsConversionDone(true);
+				ProgressStore.progress("Conversion successful.", 1);
+				return;
+			}
+
+			const output = await window.tryConvertByTraversing(
+				inputFileData,
+				fromNode,
+				toNode,
+				abortController.signal,
+				constraints
+			);
 
 			if (!output) {
 				setIsConverting(false);
@@ -365,19 +368,7 @@ export default function Conversion() {
 		setOptionRenderNonce(n => n + 1);
 	}, []);
 
-	const handleSelectSettingsPlugin = useCallback((handlerName: string) => {
-		const next = settingsCandidates.find(([, handler]) => handler.name === handlerName);
-		if (!next) return;
-
-		if (settingsScope === "input") {
-			setFromOption(next);
-		} else {
-			setToOption(next);
-		}
-	}, [settingsCandidates, settingsScope]);
-
 	const canProceed = step === "select-from" ? !!fromOption : !!toOption;
-	const canOpenSettings = !!selectedSettingsOption && (canSwitchPlugin || hasConfigurableCandidate);
 
 	return (
 		<div className="conversion-body">
@@ -391,6 +382,7 @@ export default function Conversion() {
 						from={fromOption?.[0]}
 						to={toOption?.[0]}
 						isDone={isConversionDone}
+						fileCount={outputFiles.length}
 						onDownload={handleDownloadOutput}
 						onBack={handleBackFromConverting}
 					/>
@@ -411,12 +403,10 @@ export default function Conversion() {
 
 			<HandlerOptionsModal
 				open={settingsOpen && step !== "converting"}
-				scope={settingsScope}
-				handler={settingsHandler}
-				visibleOptions={visibleSettingsOptions}
-				availableHandlers={settingsCandidates.map(([, handler]) => handler)}
-				showHandlerPicker={canSwitchPlugin}
-				onSelectHandler={handleSelectSettingsPlugin}
+				inputHandler={activeInputHandler}
+				outputHandler={activeOutputHandler}
+				inputVisibleOptions={inputVisibleOptions}
+				outputVisibleOptions={outputVisibleOptions}
 				onApplyOption={handleApplyOption}
 				onResetHandler={handleResetHandler}
 				onClose={() => setSettingsOpen(false)}

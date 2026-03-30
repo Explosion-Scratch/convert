@@ -81,7 +81,7 @@
 	color: var(--text-muted);
 	cursor: pointer;
 	outline: none;
-	transition: all 0.15s ease-out;
+	transition: none;
 }
 
 .handler-modal-icon-btn:hover {
@@ -100,12 +100,18 @@
 /* Plugin Picker */
 .handler-options-plugin-picker {
 	display: flex;
-	align-items: center;
+	flex-direction: column;
 	gap: 0.75rem;
 	padding: 0.875rem 1.5rem;
 	background: var(--bg-section);
 	border-bottom: 1px solid var(--border-primary);
 	flex-shrink: 0;
+}
+
+.handler-options-plugin-row {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
 }
 
 .handler-options-plugin-picker span {
@@ -114,6 +120,7 @@
 	color: var(--text-muted);
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
+	width: 110px;
 	flex-shrink: 0;
 }
 
@@ -131,6 +138,36 @@
 	outline: none;
 }
 
+.handler-modal-resolve-btn {
+	appearance: none;
+	border: 1px solid var(--btn-border);
+	border-radius: 8px;
+	padding: 0.55rem 0.85rem;
+	color: var(--text-secondary);
+	background: var(--bg-card);
+	transition: none;
+	cursor: pointer;
+	user-select: none;
+	font-size: 0.8rem;
+	font-weight: 600;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.handler-modal-resolve-btn:hover,
+.handler-modal-resolve-btn:focus-visible {
+	color: var(--text-primary);
+	background: var(--bg-section);
+	border-color: var(--border-secondary);
+}
+
+.handler-modal-resolve-btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+	pointer-events: none;
+}
+
 .handler-options-plugin-picker select:hover {
 	border-color: var(--border-secondary);
 }
@@ -140,6 +177,77 @@
 	box-shadow: 0 0 0 3px var(--primary-transparent);
 }
 
+/* Settings Sections - Collapsible */
+.conversion-settings-section {
+	display: flex;
+	flex-direction: column;
+	border-bottom: 1px solid var(--border-primary);
+	overflow: hidden;
+}
+
+.conversion-settings-section:last-child {
+	border-bottom: none;
+}
+
+.conversion-settings-section.expanded {
+	flex: 1;
+	min-height: 0;
+}
+
+.conversion-settings-section.collapsed {
+	flex: 0 0 auto;
+}
+
+.conversion-section-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.75rem 1.5rem;
+	background: var(--bg-section);
+	cursor: pointer;
+	user-select: none;
+	position: relative;
+}
+
+.conversion-section-header:hover {
+	background: var(--bg-card-alt-hover);
+}
+
+.conversion-settings-section.collapsed .conversion-section-header:hover {
+	background: color-mix(in srgb, var(--primary-transparent) 10%, var(--bg-section));
+}
+
+.conversion-section-title {
+	font-size: 0.75rem;
+	font-weight: 700;
+	color: var(--text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.handler-role-label {
+	font-weight: 500;
+	color: var(--text-muted);
+	font-size: 0.7rem;
+	opacity: 0.8;
+}
+
+.conversion-settings-section.expanded .conversion-section-title {
+	color: var(--primary);
+}
+
+.conversion-section-header .reset-btn {
+	opacity: 0.6;
+}
+
+.conversion-section-header .reset-btn:hover {
+	opacity: 1;
+	background: transparent;
+}
+
 /* Scrollable Content Area */
 .conversion-option-list {
 	display: flex;
@@ -147,6 +255,11 @@
 	overflow-y: auto;
 	flex: 1;
 	min-height: 0;
+	background: var(--bg-card);
+}
+
+.conversion-settings-section.collapsed .conversion-option-list {
+	display: none;
 }
 
 /* Empty State */

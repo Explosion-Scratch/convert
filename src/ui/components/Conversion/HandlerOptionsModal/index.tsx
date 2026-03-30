@@ -6,12 +6,10 @@ import "./index.css";
 
 interface HandlerOptionsModalProps {
 	open: boolean;
-	scope: "input" | "output";
-	handler: FormatHandler | null;
-	visibleOptions: HandlerOptionDefinition[];
-	availableHandlers: FormatHandler[];
-	showHandlerPicker: boolean;
-	onSelectHandler: (handlerName: string) => void;
+	inputHandler: FormatHandler | null;
+	outputHandler: FormatHandler | null;
+	inputVisibleOptions: HandlerOptionDefinition[];
+	outputVisibleOptions: HandlerOptionDefinition[];
 	onApplyOption: (handler: FormatHandler, option: HandlerOptionDefinition, value: unknown) => void;
 	onResetHandler: (handler: FormatHandler) => void;
 	onClose: () => void;
@@ -19,17 +17,28 @@ interface HandlerOptionsModalProps {
 
 export default function HandlerOptionsModal({
 	open,
-	scope,
-	handler,
-	visibleOptions,
-	availableHandlers,
-	showHandlerPicker,
-	onSelectHandler,
+	inputHandler,
+	outputHandler,
+	inputVisibleOptions,
+	outputVisibleOptions,
 	onApplyOption,
 	onResetHandler,
 	onClose,
 }: HandlerOptionsModalProps) {
 	const [numberInputValues, setNumberInputValues] = useState<Record<string, string>>({});
+	const [expandedSection, setExpandedSection] = useState<"input" | "output" | null>(null);
+
+	useEffect(() => {
+		if (expandedSection === null) {
+			if (inputHandler && !outputHandler) {
+				setExpandedSection("input");
+			} else if (outputHandler) {
+				setExpandedSection("output");
+			} else if (inputHandler) {
+				setExpandedSection("input");
+			}
+		}
+	}, [inputHandler, outputHandler, expandedSection]);
 
 	useEffect(() => {
 		const handleEscape = (ev: KeyboardEvent) => {
@@ -43,9 +52,7 @@ export default function HandlerOptionsModal({
 
 	if (!open) return null;
 
-	const title = handler ? `${handler.name} Settings` : (scope === "input" ? "Input Settings" : "Output Settings");
-
-	const handleReset = () => {
+	const handleReset = (handler: FormatHandler) => {
 		if (!handler) return;
 		const confirmed = confirm(`Are you sure you want to reset all settings for ${handler.name}?`);
 		if (confirmed) {
@@ -66,9 +73,7 @@ export default function HandlerOptionsModal({
 		return currentValue !== defaultValue;
 	};
 
-	const renderOptionControl = (option: HandlerOptionDefinition) => {
-		if (!handler) return null;
-
+	const renderOptionControlForHandler = (handler: FormatHandler, option: HandlerOptionDefinition) => {
 		switch (option.kind) {
 			case "toggle":
 				return (
@@ -205,53 +210,98 @@ export default function HandlerOptionsModal({
 			<section className="handler-options-modal">
 				<header className="handler-options-modal-header">
 					<div className="handler-options-modal-title-wrap">
-						<h3>{title}</h3>
+						<h3>Conversion Settings</h3>
 					</div>
 					<div className="handler-options-modal-actions">
-						{handler && (
-							<button className="handler-modal-icon-btn" title="Reset plugin settings" onClick={handleReset}>
-								<RotateCcw size={16} />
-							</button>
-						)}
 						<button className="handler-modal-icon-btn" title="Close settings" onClick={onClose}>
 							<X size={16} />
 						</button>
 					</div>
 				</header>
 
-				{showHandlerPicker && availableHandlers.length > 1 && (
-					<div className="handler-options-plugin-picker">
-						<span>Plugin</span>
-						<select
-							value={handler?.name ?? ""}
-							onInput={(ev) => onSelectHandler(ev.currentTarget.value)}
+				{!inputHandler && !outputHandler && (
+					<p className="conversion-settings-empty">No configurable handlers selected.</p>
+				)}
+
+				{inputHandler && (
+					<div className={`conversion-settings-section ${expandedSection === "input" ? "expanded" : "collapsed"}`}>
+						<div 
+							className="conversion-section-header" 
+							onClick={() => expandedSection !== "input" && setExpandedSection("input")}
 						>
-							{availableHandlers.map(candidate => (
-								<option key={candidate.name} value={candidate.name}>{candidate.name}</option>
+							<span className="conversion-section-title">
+								{inputHandler.name} <span className="handler-role-label">(Input)</span>
+							</span>
+							<button
+								className="handler-modal-icon-btn reset-btn"
+								title="Reset input plugin settings"
+								onClick={(ev) => {
+									ev.stopPropagation();
+									handleReset(inputHandler);
+								}}
+							>
+								<RotateCcw size={14} />
+							</button>
+						</div>
+						<div className="conversion-option-list">
+							{inputVisibleOptions.length === 0 && (
+								<p className="conversion-settings-empty">No visible input settings.</p>
+							)}
+							{inputVisibleOptions.map(option => (
+								<div
+									className="conversion-option-item"
+									key={`input-${inputHandler.name}-${option.id}`}
+									data-changed={isOptionChanged(option) ? "true" : undefined}
+								>
+									<div className="conversion-option-header">
+										<span className="conversion-option-name">{option.name}</span>
+										{option.description && <span className="conversion-option-description">{option.description}</span>}
+									</div>
+									{renderOptionControlForHandler(inputHandler, option)}
+								</div>
 							))}
-						</select>
+						</div>
 					</div>
 				)}
 
-				{!handler && <p className="conversion-settings-empty">Pick a format first to open plugin settings.</p>}
-				{handler && visibleOptions.length === 0 && (
-					<p className="conversion-settings-empty">This plugin has no visible settings right now.</p>
-				)}
-				{handler && visibleOptions.length > 0 && (
-					<div className="conversion-option-list">
-						{visibleOptions.map(option => (
-							<div 
-								className="conversion-option-item" 
-								key={option.id}
-								data-changed={isOptionChanged(option) ? "true" : undefined}
+				{outputHandler && (
+					<div className={`conversion-settings-section ${expandedSection === "output" ? "expanded" : "collapsed"}`}>
+						<div 
+							className="conversion-section-header"
+							onClick={() => expandedSection !== "output" && setExpandedSection("output")}
+						>
+							<span className="conversion-section-title">
+								{outputHandler.name} <span className="handler-role-label">(Output)</span>
+							</span>
+							<button
+								className="handler-modal-icon-btn reset-btn"
+								title="Reset output plugin settings"
+								onClick={(ev) => {
+									ev.stopPropagation();
+									handleReset(outputHandler);
+								}}
 							>
-								<div className="conversion-option-header">
-									<span className="conversion-option-name">{option.name}</span>
-									{option.description && <span className="conversion-option-description">{option.description}</span>}
+								<RotateCcw size={14} />
+							</button>
+						</div>
+						<div className="conversion-option-list">
+							{outputVisibleOptions.length === 0 && (
+								<p className="conversion-settings-empty">No visible output settings.</p>
+							)}
+							{outputVisibleOptions.map(option => (
+								<div
+									className="conversion-option-item"
+									key={`output-${outputHandler.name}-${option.id}`}
+									data-changed={isOptionChanged(option) ? "true" : undefined}
+								>
+									<div className="conversion-option-header">
+										<span className="conversion-option-name">{option.name}</span>
+										{option.description && <span className="conversion-option-description">{option.description}</span>}
+									</div>
+									{renderOptionControlForHandler(outputHandler, option)}
 								</div>
-								{renderOptionControl(option)}
-							</div>
-						))}
+							))}
+						</div>
 					</div>
 				)}
 			</section>

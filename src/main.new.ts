@@ -81,6 +81,13 @@ async function buildOptionList() {
 
 let deadEndAttempts: ConvertPathNode[][];
 
+interface RouteConstraints {
+	forceInputHandler?: boolean;
+	forceOutputHandler?: boolean;
+	inputHandlerName?: string;
+	outputHandlerName?: string;
+}
+
 async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], signal?: AbortSignal) {
 	const pathString = path.map(c => c.format.format).join(" → ");
 
@@ -179,18 +186,30 @@ window.tryConvertByTraversing = async function (
 	files: FileData[],
 	from: ConvertPathNode,
 	to: ConvertPathNode,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	constraints?: RouteConstraints
 ) {
 	deadEndAttempts = [];
 	window.traversionGraph.clearDeadEndPaths();
 	const simpleMode = Mode.value === ModeEnum.Simple;
+	const forceInputHandler = constraints?.forceInputHandler ?? false;
+	const forceOutputHandler = constraints?.forceOutputHandler ?? !simpleMode;
+	const inputHandlerName = constraints?.inputHandlerName ?? from.handler.name;
+	const outputHandlerName = constraints?.outputHandlerName ?? to.handler.name;
+	let searchedPaths = 0;
 	for await (const path of window.traversionGraph.searchPath(from, to, simpleMode, (iterations) => {
 		ProgressStore.progress(`Finding route... (Checked ${iterations} paths)`, 0);
 	})) {
-		if (!simpleMode && path[1]?.handler.name !== from.handler.name) continue;
-		if (path.at(-1)?.handler.name !== to.handler.name) continue;
+		searchedPaths++;
+		if (searchedPaths % 8 === 0) {
+			ProgressStore.progress(`Finding route... (Checked ${searchedPaths} paths)`, 0);
+		}
+		if (forceInputHandler && path[1]?.handler.name !== inputHandlerName) continue;
+		if (forceOutputHandler && path.at(-1)?.handler.name !== outputHandlerName) continue;
 		if (signal?.aborted) return null;
-		path[path.length - 1] = to;
+		if (path.at(-1)?.handler.name === outputHandlerName) {
+			path[path.length - 1] = to;
+		}
 		const attempt = await attemptConvertPath(files, path, signal);
 		if (attempt) return attempt;
 	}
@@ -200,15 +219,20 @@ window.tryConvertByTraversing = async function (
 window.previewConvertPath = async function (
 	from: ConvertPathNode,
 	to: ConvertPathNode,
-	simpleMode: boolean
+	simpleMode: boolean,
+	constraints?: RouteConstraints
 ) {
+	const forceInputHandler = constraints?.forceInputHandler ?? false;
+	const forceOutputHandler = constraints?.forceOutputHandler ?? !simpleMode;
+	const inputHandlerName = constraints?.inputHandlerName ?? from.handler.name;
+	const outputHandlerName = constraints?.outputHandlerName ?? to.handler.name;
 	for await (const path of window.traversionGraph.searchPath(from, to, simpleMode, () => {})) {
-		if (path.at(-1)?.handler === to.handler) {
+		if (forceInputHandler && path[1]?.handler.name !== inputHandlerName) continue;
+		if (forceOutputHandler && path.at(-1)?.handler.name !== outputHandlerName) continue;
+		if (path.at(-1)?.handler.name === outputHandlerName) {
 			path[path.length - 1] = to;
 		}
-		if (simpleMode || path.at(-1)?.handler.name === to.handler.name) {
-			return path;
-		}
+		return path;
 	}
 	return null;
 };

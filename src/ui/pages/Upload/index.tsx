@@ -1,7 +1,9 @@
-import { useRef } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import { CurrentPage, LoadingToolsText, Pages } from "src/ui/AppState";
 import { goToUploadHome, SelectedFiles } from "src/main.new";
 import { Upload } from "lucide-preact";
+import { PopupData } from "src/ui";
+import { openPopup } from "src/ui/PopupStore";
 
 import Logo from "src/ui/components/Logo";
 import HelpButton from "src/ui/components/HelpButton";
@@ -24,10 +26,23 @@ export default function UploadPage() {
 		if (!fileList || fileList.length === 0) return;
 		if (!formatsReady) return;
 
-		const file = fileList[0];
-		SelectedFiles.value = {
-			[`${file.name}-${file.lastModified}`]: file
-		};
+		const files = Array.from(fileList);
+		const sameMime = files.every(file => file.type === files[0].type);
+		if (!sameMime) {
+			PopupData.value = {
+				title: "Upload failed",
+				text: "All input files must be of the same type.",
+				dismissible: true,
+				buttonText: "OK",
+			};
+			openPopup();
+			return;
+		}
+
+		SelectedFiles.value = files.reduce<Record<`${string}-${string}`, File>>((acc, file) => {
+			acc[`${file.name}-${file.lastModified}`] = file;
+			return acc;
+		}, {});
 		CurrentPage.value = Pages.Conversion;
 	};
 
@@ -35,10 +50,19 @@ export default function UploadPage() {
 		processFiles(fileRef.current?.files);
 	};
 
+	const handlePaste = (event: ClipboardEvent) => {
+		processFiles(event.clipboardData?.files);
+	};
+
 	const handleLogoClick = () => {
 		goToUploadHome();
 		if (fileRef.current) fileRef.current.value = "";
 	};
+
+	useEffect(() => {
+		window.addEventListener("paste", handlePaste);
+		return () => window.removeEventListener("paste", handlePaste);
+	}, [formatsReady]);
 
 	return (
 		<div className="upload-page">
@@ -63,6 +87,7 @@ export default function UploadPage() {
 					<input
 						ref={fileRef}
 						type="file"
+						multiple
 						name="uploadFile"
 						id="uploadFile"
 						onClick={(ev) => ev.stopPropagation()}

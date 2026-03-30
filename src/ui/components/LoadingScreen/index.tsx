@@ -13,6 +13,7 @@ interface LoadingScreenProps {
 	to?: FileFormat;
 	statusText?: string;
 	isDone?: boolean;
+	fileCount: number;
 	onDownload?: () => void;
 	onBack?: () => void;
 }
@@ -23,6 +24,7 @@ export default function LoadingScreen({
 	from,
 	to,
 	isDone = false,
+	fileCount,
 	onDownload,
 	onBack,
 }: LoadingScreenProps) {
@@ -86,7 +88,7 @@ export default function LoadingScreen({
 							</button>
 							<button className="loading-action-btn primary" onClick={onDownload} title="Download">
 								<Download size={18} />
-								<span>Download</span>
+								<span>{fileCount > 1 ? `Download ${fileCount} files` : 'Download'}</span>
 							</button>
 						</>
 					) : (

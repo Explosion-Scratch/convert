@@ -3,24 +3,29 @@ import { Upload } from "lucide-preact";
 
 import { ConversionInProgress, CurrentPage, LoadingToolsText, Pages } from "src/ui/AppState";
 import { SelectedFiles } from "src/main.new";
+import { PopupData } from "src/ui";
+import { openPopup } from "src/ui/PopupStore";
 
 import "./index.css";
 
-function getSingleDraggedFile(dataTransfer: DataTransfer | null): File | null {
+function getDraggedFiles(dataTransfer: DataTransfer | null): File[] | null {
 	if (!dataTransfer) return null;
 
 	if (dataTransfer.items && dataTransfer.items.length > 0) {
 		const fileItems = Array.from(dataTransfer.items).filter((item) => item.kind === "file");
-		if (fileItems.length !== 1) return null;
+		if (fileItems.length === 0) return null;
 
-		const entry = fileItems[0].webkitGetAsEntry();
-		if (entry?.isDirectory) return null;
-
-		return fileItems[0].getAsFile();
+		const files: File[] = [];
+		for (const item of fileItems) {
+			const entry = item.webkitGetAsEntry();
+			if (entry?.isDirectory) return null;
+			const file = item.getAsFile();
+			if (file) files.push(file);
+		}
+		return files.length > 0 ? files : null;
 	}
 
-	if (dataTransfer.files.length !== 1) return null;
-	return dataTransfer.files[0];
+	return dataTransfer.files.length > 0 ? Array.from(dataTransfer.files) : null;
 }
 
 function getDragPreviewState(dataTransfer: DataTransfer | null): { valid: boolean; name: string | null } {
@@ -28,18 +33,19 @@ function getDragPreviewState(dataTransfer: DataTransfer | null): { valid: boolea
 
 	if (dataTransfer.items && dataTransfer.items.length > 0) {
 		const fileItems = Array.from(dataTransfer.items).filter((item) => item.kind === "file");
-		if (fileItems.length !== 1) return { valid: false, name: null };
-		const entry = fileItems[0].webkitGetAsEntry();
-		if (entry?.isDirectory) return { valid: false, name: null };
-		const previewName = fileItems[0].getAsFile()?.name || fileItems[0].type || null;
+		if (fileItems.length === 0) return { valid: false, name: null };
+		for (const item of fileItems) {
+			const entry = item.webkitGetAsEntry();
+			if (entry?.isDirectory) return { valid: false, name: null };
+		}
+		const first = fileItems[0];
+		const previewName = first.getAsFile()?.name || first.type || null;
 		return { valid: true, name: previewName };
 	}
 
-	if (dataTransfer.files.length === 1) {
+	if (dataTransfer.files.length >= 1) {
 		return { valid: true, name: dataTransfer.files[0]?.name ?? null };
 	}
-
-	if (dataTransfer.files.length > 1) return { valid: false, name: null };
 	return { valid: true, name: null };
 }
 
@@ -104,16 +110,30 @@ export default function FullPageDropOverlay() {
 				return;
 			}
 
-			const file = getSingleDraggedFile(event.dataTransfer);
+			const files = getDraggedFiles(event.dataTransfer);
 
-			if (!file) {
+			if (!files || files.length === 0) {
 				setDraggedFileName(null);
 				return;
 			}
 
-			SelectedFiles.value = {
-				[`${file.name}-${file.lastModified}`]: file
-			};
+			const sameMime = files.every(file => file.type === files[0].type);
+			if (!sameMime) {
+				PopupData.value = {
+					title: "Upload failed",
+					text: "All input files must be of the same type.",
+					dismissible: true,
+					buttonText: "OK",
+				};
+				openPopup();
+				setDraggedFileName(null);
+				return;
+			}
+
+			SelectedFiles.value = files.reduce<Record<`${string}-${string}`, File>>((acc, file) => {
+				acc[`${file.name}-${file.lastModified}`] = file;
+				return acc;
+			}, {});
 			CurrentPage.value = Pages.Conversion;
 			setDraggedFileName(null);
 		};
