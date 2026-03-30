@@ -12,6 +12,7 @@ declare global {
       files: FileData[];
       path: ConvertPathNode[];
     } | null>;
+    previewConvertPath: (from: ConvertPathNode, to: ConvertPathNode, simpleMode: boolean) => Promise<ConvertPathNode[] | null>;
   }
 }
 

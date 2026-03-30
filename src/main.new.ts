@@ -1,6 +1,7 @@
 import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
 import handlers from "./handlers";
 import { TraversionGraph } from "./TraversionGraph.js";
+import { initializeHandlerOptions } from "./HandlerOptions.js";
 import { CurrentPage, LoadingToolsText, Pages, PopupData } from "./ui/AppState.js";
 import { signal } from "@preact/signals";
 import { Mode, ModeEnum } from "./ui/ModeStore.js";
@@ -174,6 +175,22 @@ window.tryConvertByTraversing = async function (
 	return null;
 };
 
+window.previewConvertPath = async function (
+	from: ConvertPathNode,
+	to: ConvertPathNode,
+	simpleMode: boolean
+) {
+	for await (const path of window.traversionGraph.searchPath(from, to, simpleMode)) {
+		if (path.at(-1)?.handler === to.handler) {
+			path[path.length - 1] = to;
+		}
+		if (simpleMode || path.at(-1)?.handler.name === to.handler.name) {
+			return path;
+		}
+	}
+	return null;
+};
+
 function downloadFile(bytes: Uint8Array, name: string, mime: string) {
 	const blob = new Blob([bytes as BlobPart], { type: mime });
 	const link = document.createElement("a");
@@ -184,6 +201,7 @@ function downloadFile(bytes: Uint8Array, name: string, mime: string) {
 
 async function initSupportedFormats() {
 	try {
+		initializeHandlerOptions(handlers);
 		try {
 			const cacheJSON = await fetch("cache.json").then(r => r.json());
 			window.supportedFormatCache = new Map(cacheJSON);
