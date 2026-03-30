@@ -331,7 +331,7 @@ export class TraversionGraph {
         this.listeners.forEach(l => l(state, path));
     }
 
-    public async* searchPath(from: ConvertPathNode, to: ConvertPathNode, simpleMode: boolean) : AsyncGenerator<ConvertPathNode[]> {
+    public async* searchPath(from: ConvertPathNode, to: ConvertPathNode, simpleMode: boolean, onProgress?: (iterations: number) => void) : AsyncGenerator<ConvertPathNode[]> {
         // Dijkstra's algorithm
         // Priority queue of {index, cost, path}
         let queue: PriorityQueue<QueueNode> = new PriorityQueue<QueueNode>(
@@ -392,6 +392,8 @@ export class TraversionGraph {
             });
             if (iterations % LOG_FREQUENCY === 0) {
                 console.log(`Still searching... Iterations: ${iterations}, Paths found: ${pathsFound}, Queue length: ${queue.size()}`);
+                if (onProgress) onProgress(iterations);
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
         }
         console.log(`Path search completed. Total iterations: ${iterations}, Total paths found: ${pathsFound}`);

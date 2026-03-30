@@ -181,6 +181,8 @@ export default function Conversion() {
 
 	const [toOption, setToOption] = useState<ConversionOption | null>(null);
 	const [isConverting, setIsConverting] = useState(false);
+	const [isConversionDone, setIsConversionDone] = useState(false);
+	const [outputFiles, setOutputFiles] = useState<Array<{ name: string; bytes: Uint8Array }>>([]);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [optionRenderNonce, setOptionRenderNonce] = useState(0);
 
@@ -285,6 +287,8 @@ export default function Conversion() {
 		if (!fromOption || !toOption || !firstFile) return;
 
 		setIsConverting(true);
+		setIsConversionDone(false);
+		setOutputFiles([]);
 		ConversionInProgress.value = true;
 		setStep("converting");
 		ProgressStore.reset();
@@ -295,18 +299,7 @@ export default function Conversion() {
 			for (const f of files) {
 				const buf = await f.arrayBuffer();
 				const bytes = new Uint8Array(buf);
-
-				if (fromOption[0].mime === toOption[0].mime && fromOption[0].format === toOption[0].format) {
-					downloadFile(bytes, f.name, toOption[0].mime);
-					continue;
-				}
 				inputFileData.push({ name: f.name, bytes });
-			}
-
-			if (inputFileData.length === 0) {
-				setIsConverting(false);
-				setStep("select-to");
-				return;
 			}
 
 			const fromNode = { handler: fromOption[1], format: fromOption[0] };
@@ -327,17 +320,9 @@ export default function Conversion() {
 				return;
 			}
 
-			for (const file of output.files) {
-				downloadFile(file.bytes, file.name, toOption[0].mime);
-			}
-
-			PopupData.value = {
-				title: "Conversion complete!",
-				text: `Converted ${fromOption[0].format.toUpperCase()} → ${toOption[0].format.toUpperCase()} via ${output.path.map(c => c.format.format).join(" → ")}`,
-				dismissible: true,
-				buttonText: "OK",
-			};
-			openPopup();
+			setOutputFiles(output.files);
+			setIsConversionDone(true);
+			ProgressStore.progress("Conversion successful.", 1);
 		} catch (e) {
 			console.error(e);
 			if (e instanceof DOMException && e.name === "AbortError") {
@@ -354,9 +339,21 @@ export default function Conversion() {
 		} finally {
 			setIsConverting(false);
 			ConversionInProgress.value = false;
-			setStep("select-to");
 		}
 	};
+
+	const handleDownloadOutput = useCallback(() => {
+		if (!toOption || outputFiles.length === 0) return;
+		for (const file of outputFiles) {
+			downloadFile(file.bytes, file.name, toOption[0].mime);
+		}
+	}, [outputFiles, toOption]);
+
+	const handleBackFromConverting = useCallback(() => {
+		setIsConversionDone(false);
+		setOutputFiles([]);
+		setStep("select-to");
+	}, []);
 
 	const handleApplyOption = useCallback((handler: FormatHandler, option: HandlerOptionDefinition, value: unknown) => {
 		applyOptionValue(handler, option, value);
@@ -393,6 +390,9 @@ export default function Conversion() {
 						fileSize={firstFile?.size}
 						from={fromOption?.[0]}
 						to={toOption?.[0]}
+						isDone={isConversionDone}
+						onDownload={handleDownloadOutput}
+						onBack={handleBackFromConverting}
 					/>
 				) : (
 					<FormatExplorer

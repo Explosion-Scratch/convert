@@ -11,6 +11,7 @@ import mime from "mime";
 import normalizeMimeType from "../normalizeMimeType.ts";
 import CommonFormats from "src/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
+import { NumberOption, SelectOption, ToggleOption } from "../FormatHandler.ts";
 import type { ConvertContext } from "../ui/ProgressStore.js";
 
 class ImageMagickHandler implements FormatHandler {
@@ -20,6 +21,96 @@ class ImageMagickHandler implements FormatHandler {
   public supportedFormats: FileFormat[] = [];
 
   public ready: boolean = false;
+
+  private readonly options: {
+    resizeMode: "none" | "720p" | "1080p" | "1440p" | "4k" | "custom";
+    customWidth: number;
+    customHeight: number;
+    ignoreAspectRatio: boolean;
+    quality: number;
+  } = {
+    resizeMode: "none",
+    customWidth: 1280,
+    customHeight: 720,
+    ignoreAspectRatio: false,
+    quality: 90
+  };
+
+  getOptions() {
+    return [
+      new NumberOption(
+        "quality",
+        "Quality",
+        () => this.options.quality,
+        (value) => { this.options.quality = value; },
+        {
+          min: 1,
+          max: 100,
+          step: 1,
+          unit: "%",
+          control: "slider",
+          defaultValue: 90,
+          description: "Compression quality. Lower values produce smaller files but worse quality."
+        }
+      ),
+      new SelectOption(
+        "resize-mode",
+        "Resize",
+        [
+          { label: "Keep original", value: "none", description: "Do not force output size." },
+          { label: "1280 x 720 (720p)", value: "720p" },
+          { label: "1920 x 1080 (1080p)", value: "1080p" },
+          { label: "2560 x 1440 (1440p)", value: "1440p" },
+          { label: "3840 x 2160 (4K)", value: "4k" },
+          { label: "Custom", value: "custom" }
+        ],
+        () => this.options.resizeMode,
+        (value) => { this.options.resizeMode = value as typeof this.options.resizeMode; },
+        {
+          defaultValue: "none",
+          description: "Resize dimensions for better compatibility or smaller file size."
+        }
+      ),
+      new NumberOption(
+        "resize-custom-width",
+        "Custom width",
+        () => this.options.customWidth,
+        (value) => { this.options.customWidth = value; },
+        {
+          min: 1,
+          max: 7680,
+          step: 1,
+          unit: "px",
+          defaultValue: 1280,
+          showWhen: (values) => values["resize-mode"] === "custom"
+        }
+      ),
+      new NumberOption(
+        "resize-custom-height",
+        "Custom height",
+        () => this.options.customHeight,
+        (value) => { this.options.customHeight = value; },
+        {
+          min: 1,
+          max: 4320,
+          step: 1,
+          unit: "px",
+          defaultValue: 720,
+          showWhen: (values) => values["resize-mode"] === "custom"
+        }
+      ),
+      new ToggleOption(
+        "ignore-aspect-ratio",
+        "Ignore Aspect Ratio",
+        () => this.options.ignoreAspectRatio,
+        (value) => { this.options.ignoreAspectRatio = value; },
+        false,
+        "Force the output image to have the target dimensions by stretching instead of scaling proportionally.",
+        undefined,
+        (values) => values["resize-mode"] !== "none" && values["resize-mode"] !== undefined
+      )
+    ];
+  }
 
   async init () {
 
@@ -126,7 +217,16 @@ class ImageMagickHandler implements FormatHandler {
                 ctx?.log(`Image ${inputFile.name} frame ${frameIndex} too large for ICO (${image.width}x${image.height}). Resizing to 256x256...`, "warn");
                 const geometry = new MagickGeometry(256, 256);
                 image.resize(geometry);
+              } else if (this.options.resizeMode !== "none") {
+                const target = this.options.resizeMode === "custom"
+                  ? { width: this.options.customWidth, height: this.options.customHeight }
+                  : { "720p": { width: 1280, height: 720 }, "1080p": { width: 1920, height: 1080 }, "1440p": { width: 2560, height: 1440 }, "4k": { width: 3840, height: 2160 } }[this.options.resizeMode];
+                const geometry = new MagickGeometry(target.width, target.height);
+                geometry.ignoreAspectRatio = this.options.ignoreAspectRatio;
+                image.resize(geometry);
               }
+
+              image.quality = Math.max(1, Math.min(100, Math.round(this.options.quality)));
 
               outputCollection.push(image);
               frameIndex++;

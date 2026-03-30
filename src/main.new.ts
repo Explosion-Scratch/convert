@@ -1,7 +1,7 @@
 import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
 import handlers from "./handlers";
 import { TraversionGraph } from "./TraversionGraph.js";
-import { initializeHandlerOptions } from "./HandlerOptions.js";
+import { getOptionValues, initializeHandlerOptions } from "./HandlerOptions.js";
 import { CurrentPage, LoadingToolsText, Pages, PopupData } from "./ui/AppState.js";
 import { signal } from "@preact/signals";
 import { Mode, ModeEnum } from "./ui/ModeStore.js";
@@ -130,6 +130,8 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], si
 
 			if (!inputFormat) throw `Handler "${handler.name}" doesn't support the "${path[i].format.format}" format.`;
 
+			ctx.log(`Plugin call: ${handler.name} | from=${path[i].format.format} (${path[i].format.mime}) | to=${path[i + 1].format.format} (${path[i + 1].format.mime})`);
+			ctx.log(`Plugin options: ${JSON.stringify(getOptionValues(handler))}`, "debug");
 			ctx.log(`Converting ${path[i].format.format} → ${path[i + 1].format.format}`);
 			ProgressStore.progress(`${handler.name}: ${path[i].format.format} → ${path[i + 1].format.format}`, i / totalSteps);
 
@@ -138,6 +140,7 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], si
 				new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
 			]))[0];
 
+			ctx.log(`Plugin done: ${handler.name} | from=${path[i].format.format} (${path[i].format.mime}) | to=${path[i + 1].format.format} (${path[i + 1].format.mime})`);
 			ctx.log(`Step ${i + 1}/${totalSteps} complete`);
 			if (files.some(c => !c.bytes.length)) throw "Output is empty.";
 		} catch (e) {
@@ -160,6 +163,15 @@ async function attemptConvertPath(files: FileData[], path: ConvertPathNode[], si
 		}
 	}
 
+	ProgressStore.logs.value = [
+		...ProgressStore.logs.value,
+		{
+			timestamp: Date.now(),
+			plugin: "Router",
+			message: `Route done: ${path.map(c => `${c.handler.name}:${c.format.format}`).join(" -> ")}`,
+			level: "log"
+		}
+	];
 	return { files, path };
 }
 
@@ -171,11 +183,14 @@ window.tryConvertByTraversing = async function (
 ) {
 	deadEndAttempts = [];
 	window.traversionGraph.clearDeadEndPaths();
-	for await (const path of window.traversionGraph.searchPath(from, to, Mode.value === ModeEnum.Simple)) {
+	const simpleMode = Mode.value === ModeEnum.Simple;
+	for await (const path of window.traversionGraph.searchPath(from, to, simpleMode, (iterations) => {
+		ProgressStore.progress(`Finding route... (Checked ${iterations} paths)`, 0);
+	})) {
+		if (!simpleMode && path[1]?.handler.name !== from.handler.name) continue;
+		if (path.at(-1)?.handler.name !== to.handler.name) continue;
 		if (signal?.aborted) return null;
-		if (path.at(-1)?.handler === to.handler) {
-			path[path.length - 1] = to;
-		}
+		path[path.length - 1] = to;
 		const attempt = await attemptConvertPath(files, path, signal);
 		if (attempt) return attempt;
 	}
@@ -187,7 +202,7 @@ window.previewConvertPath = async function (
 	to: ConvertPathNode,
 	simpleMode: boolean
 ) {
-	for await (const path of window.traversionGraph.searchPath(from, to, simpleMode)) {
+	for await (const path of window.traversionGraph.searchPath(from, to, simpleMode, () => {})) {
 		if (path.at(-1)?.handler === to.handler) {
 			path[path.length - 1] = to;
 		}

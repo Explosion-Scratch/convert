@@ -1,4 +1,4 @@
-import { MultiSelectOption, NumberOption, SelectOption, type FileData, type FileFormat, type FormatHandler } from "../FormatHandler.ts";
+import { MultiSelectOption, NumberOption, SelectOption, TextOption, type FileData, type FileFormat, type FormatHandler } from "../FormatHandler.ts";
 import type { ConvertContext } from "../ui/ProgressStore.js";
 
 import { FFmpeg } from "@ffmpeg/ffmpeg";
@@ -38,6 +38,7 @@ class FFmpegHandler implements FormatHandler {
     customHeight: number;
     outputFrameRateMode: "keep" | "set";
     outputFrameRate: number;
+    customArgs: string;
   } = {
     imageTimingMode: "auto",
     imageSequenceFps: 30,
@@ -48,7 +49,8 @@ class FFmpegHandler implements FormatHandler {
     customWidth: 1280,
     customHeight: 720,
     outputFrameRateMode: "keep",
-    outputFrameRate: 30
+    outputFrameRate: 30,
+    customArgs: ""
   };
 
   #ffmpeg?: FFmpeg;
@@ -464,6 +466,16 @@ class FFmpegHandler implements FormatHandler {
           defaultValue: ["divisible-pad", "multiple-size", "valid-size", "sample-rate"],
           description: "Select which recovery strategies FFmpeg may apply when conversion fails."
         }
+      ),
+      new TextOption(
+        "custom-args",
+        "Extra CLI arguments",
+        () => this.options.customArgs,
+        (value) => { this.options.customArgs = value; },
+        {
+          defaultValue: "",
+          description: "Custom FFmpeg arguments (e.g. -c:v libx264 -crf 23)"
+        }
       )
     ];
   }
@@ -590,6 +602,12 @@ class FFmpegHandler implements FormatHandler {
     } else if (outputFormat.internal === "asf") {
       command.push("-b:v", "15M", "-b:a", "192k");
     }
+
+    if (this.options.customArgs) {
+      const parsedArgs = this.options.customArgs.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+      command.push(...parsedArgs.map(arg => arg.replaceAll(/^"|"$/g, "")));
+    }
+
     if (args) command.push(...args);
     command.push("output");
 

@@ -1,4 +1,4 @@
-import { ArrowRight, XSquare } from "lucide-preact";
+import { ArrowLeft, ArrowRight, Download, XSquare } from "lucide-preact";
 import type { FileFormat } from "src/FormatHandler";
 import FileIcon from "src/ui/components/FileIcon";
 import FileInfoBadge from "src/ui/components/FileInfo";
@@ -12,6 +12,9 @@ interface LoadingScreenProps {
 	from?: FileFormat;
 	to?: FileFormat;
 	statusText?: string;
+	isDone?: boolean;
+	onDownload?: () => void;
+	onBack?: () => void;
 }
 
 export default function LoadingScreen({
@@ -19,6 +22,9 @@ export default function LoadingScreen({
 	fileSize,
 	from,
 	to,
+	isDone = false,
+	onDownload,
+	onBack,
 }: LoadingScreenProps) {
 	const fromExt = from?.extension?.toUpperCase();
 	const toExt = to?.extension?.toUpperCase();
@@ -72,14 +78,27 @@ export default function LoadingScreen({
 				<ConversionLogs />
 
 				<div className="loading-actions">
-					<button 
-						className="loading-action-btn danger"
-						onClick={() => ProgressStore.abort()}
-						title="Cancel Conversion"
-					>
-						<XSquare size={18} />
-						<span>Cancel</span>
-					</button>
+					{isDone ? (
+						<>
+							<button className="loading-action-btn secondary" onClick={onBack} title="Back">
+								<ArrowLeft size={18} />
+								<span>Back</span>
+							</button>
+							<button className="loading-action-btn primary" onClick={onDownload} title="Download">
+								<Download size={18} />
+								<span>Download</span>
+							</button>
+						</>
+					) : (
+						<button 
+							className="loading-action-btn danger"
+							onClick={() => ProgressStore.abort()}
+							title="Cancel Conversion"
+						>
+							<XSquare size={18} />
+							<span>Cancel</span>
+						</button>
+					)}
 				</div>
 			</div>
 		</div>
