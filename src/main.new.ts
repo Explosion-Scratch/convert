@@ -193,8 +193,8 @@ window.tryConvertByTraversing = async function (
 	window.traversionGraph.clearDeadEndPaths();
 	const simpleMode = Mode.value === ModeEnum.Simple;
 	let searchedPaths = 0;
-	for await (const path of window.traversionGraph.searchPath(from, to, simpleMode, (iterations) => {
-		ProgressStore.progress(`Finding route... (Checked ${iterations} paths)`, 0);
+	for await (const path of window.traversionGraph.searchPath(from, to, simpleMode, (iterations, title) => {
+		ProgressStore.progress(title ?? `Finding route... (Checked ${iterations} paths)`, 0);
 	})) {
 		searchedPaths++;
 		if (searchedPaths % 8 === 0) {

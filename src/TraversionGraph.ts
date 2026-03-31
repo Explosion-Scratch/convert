@@ -330,7 +330,7 @@ export class TraversionGraph {
         this.listeners.forEach(l => l(state, path));
     }
 
-    public async* searchPath(from: ConvertPathNode, to: ConvertPathNode, simpleMode: boolean, onProgress?: (iterations: number) => void) : AsyncGenerator<ConvertPathNode[]> {
+    public async* searchPath(from: ConvertPathNode, to: ConvertPathNode, simpleMode: boolean, onProgress?: (iterations: number, title?: string) => void) : AsyncGenerator<ConvertPathNode[]> {
         console.log("searchPath called with:", from, "to:", to, "simpleMode:", simpleMode);
         // Dijkstra's algorithm
         // Priority queue of {index, cost, path}
@@ -350,9 +350,9 @@ export class TraversionGraph {
         let pathsFound = 0;
         while (queue.size() > 0) {
             iterations++;
-            if (onProgress && iterations % 100 === 0) onProgress(iterations);
             // Get the node with the lowest cost
             let current = queue.poll()!;
+            if (onProgress && iterations % 100 === 0) onProgress(iterations, `Trying ${current.path.map(p => p.format.format).join(" → ")}...`);
             // In Dijkstra's, once a node is popped from the priority queue,
             // its optimal cost is finalized. Skip if already processed.
             if (visited.has(current.index)) {
@@ -366,6 +366,7 @@ export class TraversionGraph {
                 const foundPathLast = current.path.at(-1);
                 if (simpleMode || !to.handler || to.handler.name === foundPathLast?.handler.name) {
                     console.log(`Found path at iteration ${logString}`);
+                    if (onProgress) onProgress(iterations, `Trying ${current.path.map(p => p.format.format).join(" → ")}...`);
                     this.dispatchEvent("found", current.path);
                     yield current.path;
                     pathsFound++;
