@@ -496,6 +496,8 @@ class FFmpegHandler implements FormatHandler {
     ctx?.log("Reloading FFmpeg...");
     await this.reloadFFmpeg();
 
+    let totalDurationUs = 0;
+
     if (ctx) {
       const abortHandler = () => {
         ctx.log("Abort signal received — terminating FFmpeg.", "error");
@@ -507,14 +509,34 @@ class FFmpegHandler implements FormatHandler {
         let level: "log" | "error" | "warn" = "log";
         if (type === "stderr") level = "warn";
         ctx.log(message, level);
+
+        if (!totalDurationUs) {
+          const durationMatch = message.match(/Duration:\s*(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
+          if (durationMatch) {
+            const [, hours, minutes, seconds, centis] = durationMatch;
+            totalDurationUs = (
+              Number(hours) * 3600 +
+              Number(minutes) * 60 +
+              Number(seconds) +
+              Number(centis) / 100
+            ) * 1_000_000;
+          }
+        }
       });
 
       this.#ffmpeg.on("progress", ({ progress, time }) => {
-        if (!Number.isFinite(progress) || progress < 0) {
-          const seconds = time / 1_000_000;
-          ctx.progress(`Transcoding... (${seconds.toFixed(1)}s processed)`, p => Math.min(0.95, p + 0.001));
-        } else {
+        const timeUs = Math.max(0, time);
+
+        if (totalDurationUs > 0 && timeUs > 0) {
+          const timeBasedProgress = Math.min(0.99, timeUs / totalDurationUs);
+          const seconds = (timeUs / 1_000_000).toFixed(1);
+          const total = (totalDurationUs / 1_000_000).toFixed(1);
+          ctx.progress(`Transcoding... (${seconds}s / ${total}s)`, timeBasedProgress);
+        } else if (Number.isFinite(progress) && progress > 0 && progress <= 1) {
           ctx.progress(`Transcoding...`, Math.max(0, Math.min(0.99, progress)));
+        } else if (timeUs > 0) {
+          const seconds = (timeUs / 1_000_000).toFixed(1);
+          ctx.progress(`Transcoding... (${seconds}s processed)`, p => Math.min(0.95, p + 0.005));
         }
       });
     }
