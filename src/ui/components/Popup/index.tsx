@@ -20,11 +20,12 @@ export default function Popup() {
 
 	useEffect(() => {
 		const handler = (ev: KeyboardEvent) => {
-			if (ev.key === "Escape") ev.preventDefault();
-			if (
-				ev.key === "Escape"
-				&& (PopupData.value.dismissible === undefined || PopupData.value.dismissible)
-			) closePopup();
+			if (ev.key !== "Escape" || !popupOpen.value) return;
+			if (PopupData.value.dismissible === false) {
+				ev.preventDefault();
+				return;
+			}
+			closePopup();
 		};
 		globalThis.addEventListener("keydown", handler);
 		return () => globalThis.removeEventListener("keydown", handler);

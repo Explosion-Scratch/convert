@@ -220,11 +220,15 @@ class FFmpegHandler implements FormatHandler {
           else category = "video";
         }
 
-        const name = FFmpegHandler.formatNames.get(format) || (description + (formats.length > 1 ? (" / " + format) : ""));
+        // Canonicalize MIDI so graph nodes match dedicated MIDI handlers (which use "mid").
+        // Without this, FFmpeg can expose "midi" and split routing into a separate node.
+        const canonicalFormat = mimeType === "audio/midi" ? "mid" : format;
+
+        const name = FFmpegHandler.formatNames.get(canonicalFormat) || (description + (formats.length > 1 ? (" / " + format) : ""));
 
         this.supportedFormats.push({
           name: name,
-          format,
+          format: canonicalFormat,
           extension,
           mime: mimeType,
           from: flags.includes("D"),

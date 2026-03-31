@@ -74,6 +74,7 @@ export default function HandlerOptionsModal({
 	};
 
 	const renderOptionControlForHandler = (handler: FormatHandler, option: HandlerOptionDefinition) => {
+		const optionStateKey = `${handler.name}:${option.id}`;
 		switch (option.kind) {
 			case "toggle":
 				return (
@@ -88,7 +89,7 @@ export default function HandlerOptionsModal({
 				);
 			case "number": {
 				const value = option.getValue();
-				const inputValue = numberInputValues[option.id] ?? String(value);
+				const inputValue = numberInputValues[optionStateKey] ?? String(value);
 				
 				return (
 					<div className="handler-option-number">
@@ -108,7 +109,7 @@ export default function HandlerOptionsModal({
 								step={option.step ?? 1}
 								value={inputValue}
 								onInput={(ev) => {
-									setNumberInputValues(prev => ({ ...prev, [option.id]: ev.currentTarget.value }));
+									setNumberInputValues(prev => ({ ...prev, [optionStateKey]: ev.currentTarget.value }));
 								}}
 								onBlur={(ev) => {
 									const parsed = Number(ev.currentTarget.value);
@@ -125,7 +126,7 @@ export default function HandlerOptionsModal({
 									onApplyOption(handler, option, finalValue);
 									setNumberInputValues(prev => {
 										const next = { ...prev };
-										delete next[option.id];
+										delete next[optionStateKey];
 										return next;
 									});
 								}}

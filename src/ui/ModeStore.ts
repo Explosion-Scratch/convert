@@ -14,7 +14,10 @@ export const enum ModeText {
 
 function getInitialMode(): ModeEnum {
 	const stored = localStorage.getItem(STORAGE_KEY);
-	return (!!stored) ? parseInt(stored, 10) : ModeEnum.Simple;
+	if (!stored) return ModeEnum.Simple;
+	const parsed = parseInt(stored, 10);
+	if (parsed === ModeEnum.Simple || parsed === ModeEnum.Advanced) return parsed;
+	return ModeEnum.Simple;
 }
 
 export const Mode = signal<ModeEnum>(getInitialMode());

@@ -192,10 +192,6 @@ window.tryConvertByTraversing = async function (
 	deadEndAttempts = [];
 	window.traversionGraph.clearDeadEndPaths();
 	const simpleMode = Mode.value === ModeEnum.Simple;
-	const forceInputHandler = constraints?.forceInputHandler ?? false;
-	const forceOutputHandler = constraints?.forceOutputHandler ?? !simpleMode;
-	const inputHandlerName = constraints?.inputHandlerName ?? from.handler.name;
-	const outputHandlerName = constraints?.outputHandlerName ?? to.handler.name;
 	let searchedPaths = 0;
 	for await (const path of window.traversionGraph.searchPath(from, to, simpleMode, (iterations) => {
 		ProgressStore.progress(`Finding route... (Checked ${iterations} paths)`, 0);
@@ -204,10 +200,8 @@ window.tryConvertByTraversing = async function (
 		if (searchedPaths % 8 === 0) {
 			ProgressStore.progress(`Finding route... (Checked ${searchedPaths} paths)`, 0);
 		}
-		if (forceInputHandler && path[1]?.handler.name !== inputHandlerName) continue;
-		if (forceOutputHandler && path.at(-1)?.handler.name !== outputHandlerName) continue;
 		if (signal?.aborted) return null;
-		if (path.at(-1)?.handler.name === outputHandlerName) {
+		if (path.at(-1)?.handler.name === to.handler.name) {
 			path[path.length - 1] = to;
 		}
 		const attempt = await attemptConvertPath(files, path, signal);
@@ -222,14 +216,8 @@ window.previewConvertPath = async function (
 	simpleMode: boolean,
 	constraints?: RouteConstraints
 ) {
-	const forceInputHandler = constraints?.forceInputHandler ?? false;
-	const forceOutputHandler = constraints?.forceOutputHandler ?? !simpleMode;
-	const inputHandlerName = constraints?.inputHandlerName ?? from.handler.name;
-	const outputHandlerName = constraints?.outputHandlerName ?? to.handler.name;
 	for await (const path of window.traversionGraph.searchPath(from, to, simpleMode, () => {})) {
-		if (forceInputHandler && path[1]?.handler.name !== inputHandlerName) continue;
-		if (forceOutputHandler && path.at(-1)?.handler.name !== outputHandlerName) continue;
-		if (path.at(-1)?.handler.name === outputHandlerName) {
+		if (path.at(-1)?.handler.name === to.handler.name) {
 			path[path.length - 1] = to;
 		}
 		return path;
@@ -237,7 +225,7 @@ window.previewConvertPath = async function (
 	return null;
 };
 
-function downloadFile(bytes: Uint8Array, name: string, mime: string) {
+export function downloadFile(bytes: Uint8Array, name: string, mime: string) {
 	const blob = new Blob([bytes as BlobPart], { type: mime });
 	const link = document.createElement("a");
 	link.href = URL.createObjectURL(blob);

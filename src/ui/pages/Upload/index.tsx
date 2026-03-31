@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "preact/hooks";
-import { CurrentPage, LoadingToolsText, Pages } from "src/ui/AppState";
-import { goToUploadHome, SelectedFiles } from "src/main.new";
+import { LoadingToolsText } from "src/ui/AppState";
+import { goToUploadHome } from "src/main.new";
 import { Upload } from "lucide-preact";
 import { PopupData } from "src/ui";
 import { openPopup } from "src/ui/PopupStore";
+import { hasSameMimeType, setSelectedFilesAndGoToConversion } from "src/ui/fileSelection";
 
 import Logo from "src/ui/components/Logo";
 import HelpButton from "src/ui/components/HelpButton";
@@ -27,8 +28,7 @@ export default function UploadPage() {
 		if (!formatsReady) return;
 
 		const files = Array.from(fileList);
-		const sameMime = files.every(file => file.type === files[0].type);
-		if (!sameMime) {
+		if (!hasSameMimeType(files)) {
 			PopupData.value = {
 				title: "Upload failed",
 				text: "All input files must be of the same type.",
@@ -39,11 +39,7 @@ export default function UploadPage() {
 			return;
 		}
 
-		SelectedFiles.value = files.reduce<Record<`${string}-${string}`, File>>((acc, file) => {
-			acc[`${file.name}-${file.lastModified}`] = file;
-			return acc;
-		}, {});
-		CurrentPage.value = Pages.Conversion;
+		setSelectedFilesAndGoToConversion(files);
 	};
 
 	const handleChange = () => {

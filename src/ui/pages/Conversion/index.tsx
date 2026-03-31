@@ -3,7 +3,7 @@ import './index.css';
 import { useState, useMemo, useCallback, useEffect } from "preact/hooks";
 import mime from "mime";
 import { Settings2, ArrowLeft, ArrowRight } from "lucide-preact";
-import { ConversionOptions, SelectedFiles, type ConversionOption, type ConversionOptionsMap } from 'src/main.new';
+import { ConversionOptions, SelectedFiles, downloadFile, type ConversionOption, type ConversionOptionsMap } from 'src/main.new';
 import { Mode, ModeEnum } from "src/ui/ModeStore";
 import normalizeMimeType from "src/normalizeMimeType";
 import type { FileFormat, FormatHandler, HandlerOptionDefinition } from "src/FormatHandler";
@@ -22,7 +22,6 @@ import { ProgressStore } from "src/ui/ProgressStore";
 import StyledButton, { ButtonVariant } from "src/ui/components/StyledButton";
 
 type ConversionStep = "select-from" | "select-to" | "converting";
-type RouteConstraints = Parameters<typeof window.tryConvertByTraversing>[4];
 
 function countAvailableFormats(options: ConversionOptionsMap, direction: "from" | "to", advancedMode: boolean): number {
 	const seen = new Set<string>();
@@ -87,17 +86,18 @@ function getMimeCandidatesForFile(file: File): string[] {
 function formatMatchesUploadedFile(format: FileFormat, ext: string, mimeCandidates: string[]): boolean {
 	if (mimeCandidates.includes(format.mime)) return true;
 	if (!ext) return false;
-	const e = ext.toLowerCase();
+	const normalizeExt = (value: string) => value.toLowerCase() === "midi" ? "mid" : value.toLowerCase();
+	const e = normalizeExt(ext);
 	const fex = format.extension.toLowerCase();
 	const fmt = format.format.toLowerCase();
 	const intr = format.internal.toLowerCase();
 	return (
-		fex === e
-		|| fex.includes(e)
-		|| fmt === e
-		|| fmt.includes(e)
-		|| intr === e
-		|| intr.includes(e)
+		normalizeExt(fex) === e
+		|| normalizeExt(fex).includes(e)
+		|| normalizeExt(fmt) === e
+		|| normalizeExt(fmt).includes(e)
+		|| normalizeExt(intr) === e
+		|| normalizeExt(intr).includes(e)
 	);
 }
 
@@ -117,14 +117,6 @@ function getMatchingFromFormats(options: ConversionOptionsMap, files: File[]): C
 	}
 
 	return matched.size > 0 ? matched : options;
-}
-
-function downloadFile(bytes: Uint8Array, name: string, mime: string) {
-	const blob = new Blob([bytes as BlobPart], { type: mime });
-	const link = document.createElement("a");
-	link.href = URL.createObjectURL(blob);
-	link.download = name;
-	link.click();
 }
 
 function hasConfigurableOptions(handler: FormatHandler): boolean {
@@ -281,15 +273,6 @@ export default function Conversion() {
 
 			const fromNode = { handler: fromOption[1], format: fromOption[0] };
 			const toNode = { handler: toOption[1], format: toOption[0] };
-			const isSimpleMode = Mode.value === ModeEnum.Simple;
-			const constraints: RouteConstraints = isSimpleMode
-				? undefined
-				: {
-					forceInputHandler: true,
-					forceOutputHandler: true,
-					inputHandlerName: fromNode.handler.name,
-					outputHandlerName: toNode.handler.name,
-				};
 
 			if (
 				fromNode.format.mime === toNode.format.mime
@@ -306,8 +289,7 @@ export default function Conversion() {
 				inputFileData,
 				fromNode,
 				toNode,
-				abortController.signal,
-				constraints
+				abortController.signal
 			);
 
 			if (!output) {

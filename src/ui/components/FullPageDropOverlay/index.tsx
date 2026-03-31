@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Upload } from "lucide-preact";
 
-import { ConversionInProgress, CurrentPage, LoadingToolsText, Pages } from "src/ui/AppState";
-import { SelectedFiles } from "src/main.new";
+import { ConversionInProgress, LoadingToolsText } from "src/ui/AppState";
 import { PopupData } from "src/ui";
 import { openPopup } from "src/ui/PopupStore";
+import { hasSameMimeType, setSelectedFilesAndGoToConversion } from "src/ui/fileSelection";
 
 import "./index.css";
 
@@ -117,8 +117,7 @@ export default function FullPageDropOverlay() {
 				return;
 			}
 
-			const sameMime = files.every(file => file.type === files[0].type);
-			if (!sameMime) {
+			if (!hasSameMimeType(files)) {
 				PopupData.value = {
 					title: "Upload failed",
 					text: "All input files must be of the same type.",
@@ -130,11 +129,7 @@ export default function FullPageDropOverlay() {
 				return;
 			}
 
-			SelectedFiles.value = files.reduce<Record<`${string}-${string}`, File>>((acc, file) => {
-				acc[`${file.name}-${file.lastModified}`] = file;
-				return acc;
-			}, {});
-			CurrentPage.value = Pages.Conversion;
+			setSelectedFilesAndGoToConversion(files);
 			setDraggedFileName(null);
 		};
 
