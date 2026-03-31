@@ -485,6 +485,7 @@ class pandocHandler implements FormatHandler {
         || format === "odt"
         || format === "ods"
         || format === "odp";
+      const isTypst = format === "typst";
       const isEpubInput = format === "epub"
         || format === "epub2"
         || format === "epub3";
@@ -495,7 +496,7 @@ class pandocHandler implements FormatHandler {
         to: outputFormats.includes(internal),
         internal,
         category: categories.length === 1 ? categories[0] : categories,
-        lossless: !isOfficeDocument
+        lossless: !isOfficeDocument && !isTypst
       });
     }
 

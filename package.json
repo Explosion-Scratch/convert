@@ -82,6 +82,7 @@
     "celaria-formats": "^1.0.2",
     "chess.js": "^1.4.0",
     "confbox": "^0.2.4",
+    "dom-to-svg": "^0.12.2",
     "epubjs": "^0.3.93",
     "imagetracer": "^0.2.2",
     "js-synthesizer": "^1.11.0",

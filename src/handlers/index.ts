@@ -74,12 +74,14 @@ import cssHandler from "./css.ts";
 import TypstHandler from "./typst.ts";
 import EpubHandler from "./epub.ts";
 import PptxRendererHandler from "./pptxRenderer.ts";
+import HtmlToSvgHandler from "./htmlToSvg.ts";
 
 const handlers: FormatHandler[] = [];
+try { handlers.push(new PptxRendererHandler()) } catch (_) { };
 try { handlers.push(new EpubHandler()) } catch (_) { };
 try { handlers.push(new pandocHandler()) } catch (_) { };
 try { handlers.push(new TypstHandler()) } catch (_) { };
-try { handlers.push(new PptxRendererHandler()) } catch (_) { };
+try { handlers.push(new HtmlToSvgHandler()) } catch (_) { };
 try { handlers.push(new svgTraceHandler()) } catch (_) { };
 try { handlers.push(new canvasToBlobHandler()) } catch (_) { };
 try { handlers.push(new meydaHandler()) } catch (_) { };

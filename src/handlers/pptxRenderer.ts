@@ -6,11 +6,29 @@ import {
 import CommonFormats from "src/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
 import type { ConvertContext } from "../ui/ProgressStore.js";
-import svgForeignObjectHandler from "./svgForeignObject.ts";
-import {
-  TYPST_ASSET_MANIFEST_START,
-  TYPST_ASSET_MANIFEST_END,
-} from "./pandoc.ts";
+import { htmlContentToSvgString } from "./htmlToSvg.ts";
+
+async function blobUrlToDataUrl(blobUrl: string): Promise<string> {
+  const response = await fetch(blobUrl);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function convertBlobUrlsToDataUrls(element: HTMLElement): Promise<void> {
+  const images = Array.from(element.querySelectorAll("img"));
+  for (const img of images) {
+    if (img.src.startsWith("blob:")) {
+      try {
+        img.src = await blobUrlToDataUrl(img.src);
+      } catch (_) { /* ignore errors */ }
+    }
+  }
+}
 
 async function waitForSlideToSettle(element: HTMLElement): Promise<void> {
   const imagePromises = Array.from(element.querySelectorAll("img"))
@@ -34,16 +52,6 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return sliced as ArrayBuffer;
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCodePoint(...chunk);
-  }
-  return btoa(binary);
-}
-
 export default class PptxRendererHandler implements FormatHandler {
   public name: string = "pptx-renderer";
 
@@ -52,7 +60,6 @@ export default class PptxRendererHandler implements FormatHandler {
   public supportedFormats: FileFormat[] = [
     CommonFormats.PPTX.supported("pptx", true, false),
     CommonFormats.SVG.supported("svg", false, true),
-    CommonFormats.TYPST.supported("typst", false, true),
   ];
 
   async init() {
@@ -67,9 +74,8 @@ export default class PptxRendererHandler implements FormatHandler {
     ctx?: ConvertContext,
   ): Promise<FileData[]> {
     if (!this.ready) throw new Error("Handler not initialized.");
-    if (inputFormat.internal !== "pptx") {
-      throw new Error("Invalid input format.");
-    }
+    if (inputFormat.internal !== "pptx") throw new Error("Invalid input format.");
+    if (outputFormat.internal !== "svg") throw new Error("Invalid output format.");
 
     const outputFiles: FileData[] = [];
     const stagingRoot = document.createElement("div");
@@ -95,11 +101,10 @@ export default class PptxRendererHandler implements FormatHandler {
         const totalSlides = presentation.slides.length;
         ctx?.log(`Found ${totalSlides} slides (${presentation.width}×${presentation.height}px)`);
         const mediaUrlCache = new Map<string, string>();
-        const slideSvgs: string[] = [];
 
         for (const [slideIndex, slide] of presentation.slides.entries()) {
           ctx?.throwIfAborted();
-          ctx?.progress(`Rendering slide ${slideIndex + 1}/${totalSlides}...`, slideIndex / totalSlides * 0.8);
+          ctx?.progress(`Rendering slide ${slideIndex + 1}/${totalSlides}...`, slideIndex / totalSlides);
           ctx?.log(`Rendering slide ${slideIndex + 1}/${totalSlides}...`);
 
           const handle = renderSlide(presentation, slide, { mediaUrlCache });
@@ -110,84 +115,36 @@ export default class PptxRendererHandler implements FormatHandler {
             stagingRoot.appendChild(handle.element);
 
             await waitForSlideToSettle(handle.element);
+            await convertBlobUrlsToDataUrls(handle.element);
 
-            const slideHtml = handle.element.outerHTML;
-            const wrappedHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:0;overflow:hidden}*{box-sizing:border-box}</style></head><body style="width:${presentation.width}px;height:${presentation.height}px;">${slideHtml}</body></html>`;
+            const slideHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:0;overflow:hidden}*{box-sizing:border-box}</style></head><body style="width:${presentation.width}px;height:${presentation.height}px;">${handle.element.outerHTML}</body></html>`;
 
-            const { xml, bbox } = await svgForeignObjectHandler.normalizeHTML(wrappedHtml);
-            const svgWidth = Math.max(bbox.width, presentation.width);
-            const svgHeight = Math.max(bbox.height, presentation.height);
-            const svgString = `<svg width="${svgWidth}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg"><foreignObject x="0" y="0" width="${svgWidth}" height="${svgHeight}">${xml}</foreignObject></svg>`;
-            slideSvgs.push(svgString);
+            const svgString = await htmlContentToSvgString(slideHtml, {
+              width: presentation.width,
+              height: presentation.height,
+            });
+
+            const baseName = inputFile.name.replace(/\.[^.]+$/u, "");
+            const svgName = totalSlides === 1
+              ? `${baseName}.svg`
+              : `${baseName}_slide${slideIndex + 1}.svg`;
+
+            outputFiles.push({
+              name: svgName,
+              bytes: new TextEncoder().encode(svgString),
+            });
           } finally {
             stagingRoot.replaceChildren();
             handle.dispose();
           }
-        }
-
-        const baseName = inputFile.name.replace(/\.[^.]+$/u, "");
-
-        if (outputFormat.internal === "svg") {
-          ctx?.progress("Writing SVG files...", 0.9);
-          for (let si = 0; si < slideSvgs.length; si++) {
-            const svgName = slideSvgs.length === 1
-              ? `${baseName}.svg`
-              : `${baseName}_slide${si + 1}.svg`;
-            outputFiles.push({
-              name: svgName,
-              bytes: new TextEncoder().encode(slideSvgs[si]),
-            });
-          }
-          ctx?.progress("Conversion complete!", 1);
-          ctx?.log(`Generated ${slideSvgs.length} SVG files`);
-
-        } else if (outputFormat.internal === "typst") {
-          ctx?.progress("Building Typst document...", 0.85);
-          ctx?.log("Assembling Typst document with SVG slides...");
-
-          const typstParts: string[] = [
-            '#set page(width: auto, height: auto, margin: 0pt)',
-            '',
-          ];
-
-          const shadowFiles: Record<string, Uint8Array> = {};
-          for (let si = 0; si < slideSvgs.length; si++) {
-            const svgFileName = `slide_${si + 1}.svg`;
-            shadowFiles[svgFileName] = new TextEncoder().encode(slideSvgs[si]);
-            if (si > 0) {
-              typstParts.push('#pagebreak()');
-            }
-            typstParts.push(`#image("${svgFileName}")`);
-          }
-
-          const typstContent = typstParts.join('\n');
-
-          const bundledAssets = Object.fromEntries(
-            Object.entries(shadowFiles).map(([path, bytes]) => [path, bytesToBase64(bytes)]),
-          );
-
-          const bundledTypst = [
-            TYPST_ASSET_MANIFEST_START,
-            `// ${JSON.stringify(bundledAssets)}`,
-            TYPST_ASSET_MANIFEST_END,
-            "",
-            typstContent,
-          ].join("\n");
-
-          ctx?.progress("Typst document ready", 0.95);
-          outputFiles.push({
-            name: `${baseName}.typ`,
-            bytes: new TextEncoder().encode(bundledTypst),
-          });
-
-          ctx?.progress("Conversion complete!", 1);
-          ctx?.log("Typst document with embedded SVG slides ready for PDF compilation");
         }
       }
     } finally {
       stagingRoot.remove();
     }
 
+    ctx?.progress("Slides rendered to SVG", 1);
+    ctx?.log(`Generated ${outputFiles.length} SVG file(s)`);
     return outputFiles;
   }
 }
