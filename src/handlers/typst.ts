@@ -1,6 +1,7 @@
 import CommonFormats, { Category } from "src/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
 import type { TypstSnippet } from "@myriaddreamin/typst.ts/dist/esm/contrib/snippet.mjs";
+import { BadMagicError, EOFError, InitializationError } from "src/errors.ts";
 
 function parseSvgPageDimensions(svgBytes: Uint8Array): { widthPt: number; heightPt: number } {
   const head = new TextDecoder().decode(svgBytes.slice(0, 16384));
@@ -102,7 +103,7 @@ ${body}
     inputFormat: FileFormat,
     outputFormat: FileFormat,
   ): Promise<FileData[]> {
-    if (!this.ready || !this.$typst) throw new Error("Handler not initialized.");
+    if (!this.ready || !this.$typst) throw new InitializationError("Handler not initialized.");
 
     if (inputFormat.internal === "svg" && outputFormat.internal === "svg") {
       return inputFiles.map(f => ({
