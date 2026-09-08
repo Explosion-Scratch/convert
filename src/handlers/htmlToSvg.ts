@@ -1,5 +1,5 @@
 import { elementToSVG, inlineResources } from "dom-to-svg";
-import CommonFormats, { Category } from "src/CommonFormats.ts";
+import CommonFormats from "src/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
 
 function nextPaint(): Promise<void> {
@@ -108,9 +108,7 @@ class HtmlToSvgHandler implements FormatHandler {
 
   public supportedFormats: FileFormat[] = [
     CommonFormats.HTML.supported("html", true, false),
-    CommonFormats.SVG.supported("svg", false, true, false, {
-      category: [Category.IMAGE, Category.VECTOR],
-    })
+    CommonFormats.SVG.supported("svg", false, true, false)
   ];
 
   public ready: boolean = true;

@@ -1,4 +1,4 @@
-import CommonFormats, { Category } from "src/CommonFormats.ts";
+import CommonFormats from "src/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
 import type { TypstSnippet } from "@myriaddreamin/typst.ts/dist/esm/contrib/snippet.mjs";
 import { BadMagicError, EOFError, InitializationError } from "src/errors.ts";
@@ -29,10 +29,8 @@ class TypstHandler implements FormatHandler {
 
   public supportedFormats: FileFormat[] = [
     CommonFormats.TYPST.supported("typst", true, false, true),
-    CommonFormats.PDF.supported("pdf", false, true),
-    CommonFormats.SVG.supported("svg", true, true, false, {
-      category: [Category.IMAGE, Category.VECTOR, Category.DOCUMENT],
-    }),
+    CommonFormats.PDF.supported("pdf", false, true, true),
+    CommonFormats.SVG.supported("svg", true, true, false),
   ];
 
   private $typst?: TypstSnippet;
