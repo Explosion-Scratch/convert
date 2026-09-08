@@ -57,7 +57,7 @@ class TypstHandler implements FormatHandler {
 
   private async svgFilesToSinglePdf(inputFiles: FileData[]): Promise<FileData[]> {
     const $typst = this.$typst!;
-    const { widthPt, heightPt } = parseSvgPageDimensions(inputFiles[0].bytes);
+    const dimensions = inputFiles.map(file => parseSvgPageDimensions(file.bytes));
 
     const id = `s${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 11)}`;
     const shadowPaths: string[] = [];
@@ -73,14 +73,13 @@ class TypstHandler implements FormatHandler {
 
     const body = imageBasenames
       .map((basename, i) => {
-        const page = `#box(width: 100%, height: 100%)[#image("${basename}", width: 100%, height: 100%)]`;
+        const { widthPt, heightPt } = dimensions[i];
+        const page = `#set page(margin: 0pt, width: ${widthPt}pt, height: ${heightPt}pt)\n#box(width: 100%, height: 100%)[#image("${basename}", width: 100%, height: 100%)]`;
         return i < imageBasenames.length - 1 ? `${page}\n#pagebreak()\n` : page;
       })
       .join("\n");
 
-    const mainContent = `#set page(margin: 0pt, width: ${widthPt}pt, height: ${heightPt}pt)
-${body}
-`;
+    const mainContent = body;
 
     try {
       const pdfData = await $typst.pdf({ mainContent });

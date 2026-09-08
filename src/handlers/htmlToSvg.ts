@@ -92,22 +92,9 @@ async function htmlContentToSvgString(
   try {
     const shadow = host.attachShadow({ mode: "closed" });
 
-    for (const styleElement of Array.from(parsed.querySelectorAll("style"))) {
-      shadow.appendChild(styleElement.cloneNode(true));
-    }
-
-    const root = document.createElement("div");
-    const bodyStyle = parsed.body.getAttribute("style");
-    if (bodyStyle) root.setAttribute("style", bodyStyle);
-
-    const sourceNodes = parsed.body.childNodes.length > 0
-      ? Array.from(parsed.body.childNodes)
-      : Array.from(parsed.documentElement.childNodes);
-    for (const childNode of sourceNodes) {
-      root.appendChild(childNode.cloneNode(true));
-    }
-
-    shadow.appendChild(root);
+    const html = parsed.documentElement.cloneNode(true) as HTMLElement;
+    shadow.appendChild(html);
+    const root = html.querySelector("body")!;
 
     return await renderRootToSvgString(root, options);
   } finally {
