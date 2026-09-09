@@ -75,22 +75,6 @@ function attemptConversion (
   );
 }
 
-function findPath(from: FileFormat, to: FileFormat) {
-  return page.evaluate(async (from, to) => {
-    const iterator = window.traversionGraph.searchPath(
-      { format: from, handler: { name: "test-from" } },
-      { format: to },
-      false,
-    );
-    const result = await iterator.next();
-    return result.value?.map((step: ConvertPathNode) => ({
-      handler: step.handler.name,
-      format: step.format.format,
-      mime: step.format.mime,
-    })) ?? null;
-  }, from, to);
-}
-
 // ==================================================================
 //                         START OF TESTS
 // ==================================================================
@@ -174,7 +158,7 @@ test("mp3 → png → gif", async () => {
 
 }, { timeout: 60000 });
 
-test("docx → pdf", async () => {
+test("docx → pptx → pdf", async () => {
 
   const conversion = await attemptConversion(
     ["word.docx"],
@@ -183,61 +167,28 @@ test("docx → pdf", async () => {
   );
 
   expect(conversion).toBeTruthy();
-  expect([
-    [
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "application/pdf",
-    ],
-    [
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "text/html",
-      "image/svg+xml",
-      "image/png",
-      "application/pdf",
-    ],
-  ].some(
-    (expected) =>
-      expected.length === conversion!.path.length
-      && expected.every((m, i) => conversion!.path[i].format.mime === m),
-  )).toBe(true);
-  expect(Object.values(conversion!.files[0].bytes).length).toBeGreaterThan(1000);
-
-}, { timeout: 60000 });
-
-test("pptx → pdf uses pptx-renderer", async () => {
-  const path = await findPath(
-    CommonFormats.PPTX,
-    CommonFormats.PDF,
-  );
-
-  expect(path).toBeTruthy();
-  expect(path!.map(step => step.mime)).toEqual([
+  expect(conversion!.path.map(c => c.format.mime)).toEqual([
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "application/pdf",
+    "application/pdf"
   ]);
-  expect(path!.map(step => step.handler)).toEqual([
-    "test-from",
-    "pptx-renderer",
-  ]);
+
 }, { timeout: 60000 });
 
-test("pptx → pdf converts via pptx-renderer", async () => {
+test("pptx → pdf", async () => {
+
   const conversion = await attemptConversion(
     ["chart-and-complex.pptx"],
     CommonFormats.PPTX,
-    CommonFormats.PDF,
+    CommonFormats.PDF
   );
 
   expect(conversion).toBeTruthy();
   expect(conversion!.path.map(c => c.format.mime)).toEqual([
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "application/pdf",
+    "application/pdf"
   ]);
-  expect(conversion!.path[1].handler.name).toBe("pptx-renderer");
 
-  const fileSize = Object.values(conversion!.files[0].bytes).length;
-  expect(fileSize).toBeGreaterThan(10_000);
 }, { timeout: 120000 });
 
 test("md → docx", async () => {

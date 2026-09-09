@@ -49,8 +49,8 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return sliced as ArrayBuffer;
 }
 
-export default class PptxRendererHandler implements FormatHandler {
-  public name: string = "pptx-renderer";
+export default class pptxRendererHandler implements FormatHandler {
+  public name: string = "pptxRenderer";
 
   public ready: boolean = true;
 
